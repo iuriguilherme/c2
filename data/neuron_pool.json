@@ -1,0 +1,38 @@
+[
+  {
+    "neuron_type": "proximity",
+    "name": "proximity",
+    "description": "Detects nearby entities within a configurable radius",
+    "category": "sensory"
+  },
+  {
+    "neuron_type": "signal_receiver",
+    "name": "signal_receiver",
+    "description": "Receives broadcast messages from nearby entities",
+    "category": "sensory"
+  },
+  {
+    "neuron_type": "locomotion",
+    "name": "locomotion",
+    "description": "Moves the entity in the void",
+    "category": "motor"
+  },
+  {
+    "neuron_type": "signal_emitter",
+    "name": "signal_emitter",
+    "description": "Broadcasts a message to nearby entities",
+    "category": "motor"
+  },
+  {
+    "neuron_type": "divide",
+    "name": "divide",
+    "description": "Triggers asexual reproduction when threshold met",
+    "category": "reproductive"
+  },
+  {
+    "neuron_type": "memory_cell",
+    "name": "memory_cell",
+    "description": "Short-term state across ticks (not persisted to user prompt)",
+    "category": "interneuron"
+  }
+]
