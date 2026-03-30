@@ -1,0 +1,64 @@
+from redis.asyncio import Redis
+
+
+class RedisEntityRepository:
+    _KEY_PREFIX = "entity"
+    _ARCHIVE_PREFIX = "archive"
+    _LIVING_SET = "living_entities"
+
+    def __init__(self, redis: Redis) -> None:
+        self._r = redis
+
+    async def save(self, entity_id: str, data: dict) -> None:
+        key = f"{self._KEY_PREFIX}:{entity_id}"
+        await self._r.hset(key, mapping={k: str(v) for k, v in data.items()})
+        if str(data.get("alive", "True")) in ("True", "1", "true"):
+            await self._r.sadd(self._LIVING_SET, entity_id)
+        else:
+            await self._r.srem(self._LIVING_SET, entity_id)
+
+    async def load(self, entity_id: str) -> dict | None:
+        key = f"{self._KEY_PREFIX}:{entity_id}"
+        data = await self._r.hgetall(key)
+        if not data:
+            return None
+        return {k.decode(): v.decode() for k, v in data.items()}
+
+    async def list_living(self) -> list[str]:
+        members = await self._r.smembers(self._LIVING_SET)
+        return [m.decode() for m in members]
+
+    async def archive(self, entity_id: str) -> None:
+        data = await self.load(entity_id)
+        if data:
+            archive_key = f"{self._ARCHIVE_PREFIX}:{entity_id}"
+            await self._r.hset(archive_key, mapping=data)
+        await self._r.delete(f"{self._KEY_PREFIX}:{entity_id}")
+        await self._r.srem(self._LIVING_SET, entity_id)
+
+    async def load_archive(self, entity_id: str) -> dict | None:
+        key = f"{self._ARCHIVE_PREFIX}:{entity_id}"
+        data = await self._r.hgetall(key)
+        if not data:
+            return None
+        return {k.decode(): v.decode() for k, v in data.items()}
+
+
+class RedisTickStream:
+    _STREAM_KEY = "ticks:main"
+
+    def __init__(self, redis: Redis) -> None:
+        self._r = redis
+
+    async def publish_tick(self, tick: int, entity_count: int) -> None:
+        await self._r.xadd(
+            self._STREAM_KEY,
+            {"tick": str(tick), "entity_count": str(entity_count)},
+        )
+
+    async def read_recent(self, count: int = 100) -> list[dict]:
+        entries = await self._r.xrevrange(self._STREAM_KEY, count=count)
+        result = []
+        for _id, fields in reversed(entries):
+            result.append({k.decode(): v.decode() for k, v in fields.items()})
+        return result
