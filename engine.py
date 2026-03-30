@@ -1,0 +1,101 @@
+#!/usr/bin/env python3
+"""
+Simulation Engine — entry point.
+
+Usage:
+    python engine.py
+
+Environment:
+    REDIS_URL           Redis connection string (default: redis://localhost:6379)
+    OLLAMA_BASE_URL     Ollama server URL (default: http://localhost:11434)
+    VOID_WIDTH          Width of void space (default: 1000.0)
+    VOID_HEIGHT         Height of void space (default: 1000.0)
+    INITIAL_ENTITIES    Number of starting entities (default: 5)
+    TICK_INTERVAL_SEC   Seconds between ticks (default: 2.0)
+"""
+import asyncio
+import logging
+import os
+import random
+from dotenv import load_dotenv
+import redis.asyncio as aioredis
+
+from genetics.pool import GenePool
+from neural.pool import NeuronPool
+from agents.pool import ModelPool
+from agents.providers.ollama import OllamaProvider
+from agents.providers.openrouter import OpenRouterProvider
+from agents.providers.anthropic import AnthropicProvider
+from environment.void import VoidEnvironment, Position
+from simulation.factory import EntityFactory
+from simulation.tick import TickEngine
+from storage.redis import RedisEntityRepository, RedisTickStream
+
+load_dotenv()
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+logger = logging.getLogger(__name__)
+
+
+async def main() -> None:
+    redis_url = os.environ.get("REDIS_URL", "redis://localhost:6379")
+    void_w = float(os.environ.get("VOID_WIDTH", "1000.0"))
+    void_h = float(os.environ.get("VOID_HEIGHT", "1000.0"))
+    n_entities = int(os.environ.get("INITIAL_ENTITIES", "5"))
+    tick_interval = float(os.environ.get("TICK_INTERVAL_SEC", "2.0"))
+
+    redis = aioredis.from_url(redis_url, decode_responses=False)
+    repo = RedisEntityRepository(redis)
+    stream = RedisTickStream(redis)
+    void = VoidEnvironment(width=void_w, height=void_h)
+
+    gene_pool = GenePool.load()
+    neuron_pool = NeuronPool.load()
+
+    providers = [
+        OllamaProvider(base_url=os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434")),
+        OpenRouterProvider(),
+        AnthropicProvider(),
+    ]
+    model_pool = ModelPool()
+    await model_pool.discover(providers)
+
+    if model_pool.size == 0:
+        logger.warning("No models available — using Ollama with llama3.2 as fallback")
+        model_pool._pool = [(providers[0], "llama3.2")]
+
+    factory = EntityFactory(gene_pool=gene_pool, neuron_pool=neuron_pool)
+    engine = TickEngine(repo=repo, stream=stream, void=void, model_pool=model_pool)
+
+    rng = random.Random()
+    for i in range(n_entities):
+        genome = gene_pool.default_genome()
+        assignment = model_pool.assign_random(rng=rng)
+        entity = factory.create(
+            entity_id=f"entity-{i}",
+            genome=genome,
+            model_assignment=assignment,
+            rng=rng,
+        )
+        entity.position_x = rng.uniform(0, void_w)
+        entity.position_y = rng.uniform(0, void_h)
+        await repo.save(entity.id, entity.to_storage_dict())
+        void.set_position(entity.id, Position(entity.position_x, entity.position_y))
+        logger.info(
+            "Spawned %s using %s/%s", entity.id, assignment.provider_name, assignment.model
+        )
+
+    tick = 0
+    logger.info(
+        "Simulation started — %d entities, tick interval %.1fs", n_entities, tick_interval
+    )
+
+    while True:
+        tick += 1
+        await engine.tick(tick=tick)
+        living = await repo.list_living()
+        logger.info("Tick %d — %d entities alive", tick, len(living))
+        await asyncio.sleep(tick_interval)
+
+
+if __name__ == "__main__":
+    asyncio.run(main())

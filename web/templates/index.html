@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AGI Simulation</title>
+<style>
+  body { font-family: monospace; background: #0a0a0a; color: #0f0; margin: 0; padding: 20px; }
+  h1 { color: #0f0; font-size: 1.2rem; }
+  #tick { font-size: 2rem; color: #0f0; }
+  table { border-collapse: collapse; width: 100%; margin-top: 16px; }
+  th, td { border: 1px solid #1a1a1a; padding: 6px 10px; text-align: left; }
+  th { color: #888; font-weight: normal; }
+  td { color: #ccc; }
+</style>
+</head>
+<body>
+<h1>AGI Entity Simulation</h1>
+<div>Tick: <span id="tick">—</span></div>
+<div>Entities alive: <span id="count">—</span></div>
+<table>
+  <thead>
+    <tr><th>ID</th><th>Age</th><th>X</th><th>Y</th><th>Provider</th><th>Model</th></tr>
+  </thead>
+  <tbody id="entities"></tbody>
+</table>
+<script>
+async function refresh() {
+  const r = await fetch('/api/state');
+  const d = await r.json();
+  document.getElementById('tick').textContent = d.tick;
+  document.getElementById('count').textContent = d.entities.length;
+  const tbody = document.getElementById('entities');
+  tbody.innerHTML = d.entities.map(e =>
+    `<tr><td>${e.id}</td><td>${e.age}</td><td>${parseFloat(e.position_x).toFixed(1)}</td><td>${parseFloat(e.position_y).toFixed(1)}</td><td>${e.provider}</td><td>${e.model}</td></tr>`
+  ).join('');
+}
+refresh();
+setInterval(refresh, 2000);
+</script>
+</body>
+</html>
