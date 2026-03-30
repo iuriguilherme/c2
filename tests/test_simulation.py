@@ -213,3 +213,115 @@ def test_entity_should_think():
 
     assert entity.should_think(5) is True   # interval elapsed
     assert entity.should_think(3) is False  # interval not elapsed
+
+
+# ── Tick Engine ───────────────────────────────────────────────────────────────
+
+import asyncio
+from unittest.mock import MagicMock
+from simulation.tick import TickEngine
+from agents.pool import ModelPool
+
+
+def _make_entity(entity_id: str, think_interval: int = 1) -> Entity:
+    gene_pool = GenePool.load()
+    neuron_pool = NeuronPool.load()
+    factory = EntityFactory(gene_pool=gene_pool, neuron_pool=neuron_pool)
+    genome = gene_pool.default_genome()
+    assignment = ModelAssignment(provider_name="mock", model="mock-model")
+    e = factory.create(entity_id, genome, assignment, rng=random.Random(0))
+    e.think_interval = think_interval
+    return e
+
+
+@pytest.mark.asyncio
+async def test_tick_engine_increments_tick(redis):
+    repo = RedisEntityRepository(redis)
+    stream = RedisTickStream(redis)
+    void = VoidEnvironment()
+
+    mock_provider = MagicMock()
+    mock_provider.name = "mock"
+
+    async def _gen(*args, **kwargs):
+        yield '{"action": {"type": "locomotion", "parameters": {"direction": "north", "distance": 10}}}'
+
+    mock_provider.generate = _gen
+
+    mock_pool = MagicMock(spec=ModelPool)
+    mock_pool.get_provider.return_value = mock_provider
+
+    engine = TickEngine(repo=repo, stream=stream, void=void, model_pool=mock_pool)
+
+    entity = _make_entity("e-1", think_interval=1)
+    entity.position_x = 500.0
+    entity.position_y = 500.0
+    await repo.save("e-1", entity.to_storage_dict())
+    void.set_position("e-1", Position(x=500.0, y=500.0))
+
+    await engine.tick(tick=1)
+    assert engine.current_tick == 1
+
+
+@pytest.mark.asyncio
+async def test_tick_engine_ages_entity(redis):
+    repo = RedisEntityRepository(redis)
+    stream = RedisTickStream(redis)
+    void = VoidEnvironment()
+    mock_pool = MagicMock(spec=ModelPool)
+    mock_provider = MagicMock()
+    mock_provider.name = "mock"
+
+    async def _gen(*a, **kw):
+        yield "{}"
+
+    mock_provider.generate = _gen
+    mock_pool.get_provider.return_value = mock_provider
+
+    engine = TickEngine(repo=repo, stream=stream, void=void, model_pool=mock_pool)
+
+    entity = _make_entity("e-age", think_interval=99)
+    await repo.save("e-age", entity.to_storage_dict())
+    void.set_position("e-age", Position(x=0.0, y=0.0))
+
+    await engine.tick(tick=1)
+    loaded = await repo.load("e-age")
+    assert int(loaded["age"]) == 1
+
+
+@pytest.mark.asyncio
+async def test_tick_engine_kills_entity_at_lifespan(redis):
+    repo = RedisEntityRepository(redis)
+    stream = RedisTickStream(redis)
+    void = VoidEnvironment()
+    mock_pool = MagicMock(spec=ModelPool)
+    mock_provider = MagicMock()
+    mock_provider.name = "mock"
+
+    async def _gen(*a, **kw):
+        yield "{}"
+
+    mock_provider.generate = _gen
+    mock_pool.get_provider.return_value = mock_provider
+
+    gene_pool = GenePool.load()
+    neuron_pool = NeuronPool.load()
+    factory = EntityFactory(gene_pool=gene_pool, neuron_pool=neuron_pool)
+    genome = gene_pool.default_genome()
+    from genetics.models import GeneInstance
+    genome.genes[GeneType.LIFESPAN] = GeneInstance(
+        gene_type=GeneType.LIFESPAN, value=3.0
+    )
+    assignment = ModelAssignment(provider_name="mock", model="mock-model")
+    entity = factory.create("e-old", genome, assignment, rng=random.Random(0))
+    entity.age = 3
+    await repo.save("e-old", entity.to_storage_dict())
+    void.set_position("e-old", Position(x=0.0, y=0.0))
+
+    engine = TickEngine(repo=repo, stream=stream, void=void, model_pool=mock_pool)
+    await engine.tick(tick=4)
+
+    living = await repo.list_living()
+    assert "e-old" not in living
+    archived = await repo.load_archive("e-old")
+    assert archived is not None
