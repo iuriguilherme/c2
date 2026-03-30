@@ -45,3 +45,64 @@ def test_gene_definition_rejects_out_of_range_default():
             mutation_rate=0.1,
             mutation_std=10.0,
         )
+
+
+# ── Pool and reproduction ────────────────────────────────────────────────────
+
+import random
+from genetics.pool import GenePool
+from genetics.reproduction import reproduce
+
+
+def test_gene_pool_loads_all_definitions():
+    pool = GenePool.load()
+    assert len(pool.definitions) == 6
+    assert GeneType.LIFESPAN in pool.definitions
+
+
+def test_gene_pool_default_genome_has_all_genes():
+    pool = GenePool.load()
+    genome = pool.default_genome()
+    for gt in GeneType:
+        assert gt in genome.genes
+
+
+def test_reproduce_asexual_returns_genome():
+    pool = GenePool.load()
+    parent = pool.default_genome()
+    offspring = reproduce(parent, pool=pool)
+    assert isinstance(offspring, Genome)
+    assert set(offspring.genes.keys()) == set(parent.genes.keys())
+
+
+def test_reproduce_accepts_none_parent2():
+    pool = GenePool.load()
+    parent = pool.default_genome()
+    offspring = reproduce(parent, parent2=None, pool=pool)
+    assert offspring is not parent
+
+
+def test_reproduce_mutation_changes_values_statistically():
+    """Over 200 offspring, at least one gene should differ from parent."""
+    pool = GenePool.load()
+    parent = pool.default_genome()
+    changed = False
+    for _ in range(200):
+        offspring = reproduce(parent, pool=pool)
+        for gt in GeneType:
+            if offspring.genes[gt].value != parent.genes[gt].value:
+                changed = True
+                break
+        if changed:
+            break
+    assert changed, "No mutations occurred in 200 offspring — mutation_rate too low?"
+
+
+def test_reproduce_values_stay_in_bounds():
+    pool = GenePool.load()
+    parent = pool.default_genome()
+    for _ in range(50):
+        offspring = reproduce(parent, pool=pool)
+        for gt, inst in offspring.genes.items():
+            defn = pool.definitions[gt]
+            assert defn.min_value <= inst.value <= defn.max_value
