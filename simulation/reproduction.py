@@ -1,6 +1,6 @@
 import random
 from genetics.reproduction import reproduce
-from genetics.pool import GenePool
+from genetics import GenePool
 from simulation.entity import Entity
 from simulation.factory import EntityFactory
 from storage.redis import RedisEntityRepository

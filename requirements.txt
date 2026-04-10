@@ -1,0 +1,26 @@
+# AGI Entity Simulation - Python Requirements
+# For development: pip install -r requirements.txt
+
+# Core framework
+fastapi>=0.115
+uvicorn[standard]>=0.34
+quart>=0.20
+hypercorn>=0.17
+
+# Data and validation
+pydantic>=2.10
+jinja2>=3.1
+
+# Storage
+redis[hiredis]>=5.2
+
+# LLM providers
+anthropic>=0.49
+openai>=1.68
+httpx>=0.28
+
+# Environment
+python-dotenv>=1.0
+
+# Development dependencies (install with: pip install -r requirements.txt -r requirements-dev.txt)
+# See requirements-dev.txt for pytest and testing tools

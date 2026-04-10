@@ -1,6 +1,6 @@
 import random
 from genetics.models import Genome, GeneType
-from genetics.pool import GenePool
+from genetics import GenePool
 from neural.brain import Brain
 from neural.pool import NeuronPool
 from agents.pool import ModelAssignment

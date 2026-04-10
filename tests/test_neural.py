@@ -67,7 +67,7 @@ from genetics.models import GeneType, GeneInstance, Genome
 
 
 def _genome(brain_size: float = 4.0, affinity: float = 0.5) -> Genome:
-    from genetics.pool import GenePool
+    from genetics import GenePool
     g = GenePool.load().default_genome()
     g.genes[GeneType.BRAIN_SIZE] = GeneInstance(
         gene_type=GeneType.BRAIN_SIZE, value=brain_size

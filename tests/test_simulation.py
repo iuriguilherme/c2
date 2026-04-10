@@ -4,7 +4,7 @@ import random
 # ── Storage ──────────────────────────────────────────────────────────────────
 
 from storage.redis import RedisEntityRepository, RedisTickStream
-from genetics.pool import GenePool
+from genetics import GenePool
 from genetics.models import GeneType
 
 
