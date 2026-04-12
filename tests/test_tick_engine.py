@@ -264,24 +264,28 @@ async def test_integration_two_generation_via_tick():
         reproduction_handler=reproduction_handler,
     )
 
-    # Parent entity — think every tick so it always caches the divide action
+    # Parent entity — think every tick, reproduction_threshold=1 so divide is
+    # immediately available (current_age >= threshold after the first increment)
     parent = _make_entity_with_genome(
         "parent-1",
         gene_pool,
         neuron_pool,
         lifespan=50.0,
+        reproduction_threshold=1.0,
         think_interval=1.0,
     )
     parent.position_x = 500.0
     parent.position_y = 500.0
+    # Pre-seed a divide action so tick 1 executes it regardless of brain wiring
+    parent.cached_action = '{"action": {"type": "divide", "parameters": {}}}'
+    parent.cached_action_tick = 0
     await repo.save("parent-1", parent.to_storage_dict())
     void.set_position("parent-1", Position(500.0, 500.0))
 
-    # Run enough ticks: tick 1 caches action, tick 2 executes it
-    for t in range(1, 4):
-        await engine.tick(tick=t)
-        # Yield control so asyncio.create_task tasks can complete
-        await asyncio.sleep(0)
+    # Tick 1: execute pre-seeded divide → spawn_offspring scheduled
+    # asyncio.sleep(0) yields to let the create_task complete
+    await engine.tick(tick=1)
+    await asyncio.sleep(0)
 
     living = await repo.list_living()
     offspring_ids = [eid for eid in living if eid.startswith("offspring-")]

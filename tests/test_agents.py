@@ -49,11 +49,12 @@ def test_agent_output_action_validated_against_manifest():
     assert out_valid.is_valid_for_manifest(manifest)
 
 
-def test_agent_output_none_action_is_valid():
+def test_agent_output_none_action_is_invalid():
+    # action=None must return False — prevents null responses from being cached
     from neural.models import CapabilityManifest
     manifest = CapabilityManifest(schema_version="1.0", agent_id="e-1", tick=1)
     out = AgentOutput(action=None)
-    assert out.is_valid_for_manifest(manifest)
+    assert not out.is_valid_for_manifest(manifest)
 
 
 # ── Ollama provider ───────────────────────────────────────────────────────────

@@ -13,7 +13,7 @@ class AgentOutput(BaseModel):
 
     def is_valid_for_manifest(self, manifest: CapabilityManifest) -> bool:
         if self.action is None:
-            return True
+            return False
         available = manifest.get_available_actions()
         return self.action.type in available
 

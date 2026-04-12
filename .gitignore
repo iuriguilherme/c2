@@ -1,3 +1,7 @@
 .*
 !.gitignore
 *.local.md
+__pycache__/
+*.pyc
+C:*/
+
