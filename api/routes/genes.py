@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException
-from genetics.pool import GenePool
+from genetics import GenePool
 from genetics.models import GeneDefinition, GeneType
 
 router = APIRouter(prefix="/genes", tags=["genes"])

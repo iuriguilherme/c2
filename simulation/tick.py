@@ -1,9 +1,12 @@
 import asyncio
 import logging
+import random
 from genetics.models import GeneType, Genome
 from agents.output import AgentOutput
 from agents.pool import ModelPool
 from environment.void import VoidEnvironment, Position
+from neural.pool import NeuronPool
+from neural.brain import Brain
 from simulation.entity import Entity
 from simulation.archive import EntityArchive
 from storage.redis import RedisEntityRepository, RedisTickStream
@@ -18,11 +21,15 @@ class TickEngine:
         stream: RedisTickStream,
         void: VoidEnvironment,
         model_pool: ModelPool,
+        neuron_pool: NeuronPool | None = None,
+        reproduction_handler=None,
     ) -> None:
         self._repo = repo
         self._stream = stream
         self._void = void
         self._model_pool = model_pool
+        self._neuron_pool = neuron_pool or NeuronPool.load()
+        self._reproduction_handler = reproduction_handler
         self._archive = EntityArchive(repo)
         self.current_tick = 0
 
@@ -53,6 +60,7 @@ class TickEngine:
             entity.alive = False
             await self._repo.save(entity_id, entity.to_storage_dict())
             await self._archive.archive(entity_id)
+            self._void.remove_entity(entity_id)
             return
 
         # Execute cached action from previous tick
@@ -133,15 +141,17 @@ class TickEngine:
             message = str(action.parameters.get("message", ""))
             radius = float(action.parameters.get("radius", 50.0))
             self._void.broadcast(entity.id, message=message, radius=radius)
+        elif action.type == "divide":
+            if self._reproduction_handler is not None:
+                logger.debug("Entity %s triggered divide — spawning offspring", entity.id)
+                asyncio.create_task(
+                    self._reproduction_handler.spawn_offspring(entity, tick=self.current_tick)
+                )
 
     def _load_entity(self, data: dict) -> Entity:
-        import random
-        from neural.pool import NeuronPool
-        from neural.brain import Brain
         genome = Genome.model_validate_json(data["genome"])
-        pool = NeuronPool.load()
         brain = Brain.from_genome(
-            genome, pool, rng=random.Random(hash(data["id"]) % (2**31))
+            genome, self._neuron_pool, rng=random.Random(hash(data["id"]) % (2**31))
         )
         return Entity(
             id=data["id"],

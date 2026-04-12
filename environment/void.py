@@ -95,7 +95,19 @@ class VoidEnvironment:
         self._message_inbox.clear()
 
     def age_messages(self) -> None:
-        """Increment ticks_ago for all inbox messages. Call once per tick."""
-        for msgs in self._message_inbox.values():
+        """Increment ticks_ago for all inbox messages. Call once per tick.
+
+        Eviction policy:
+        - Messages with ticks_ago > 10 are removed.
+        - If more than 20 messages remain, keep only the 20 most recent
+          (lowest ticks_ago).
+        """
+        for entity_id, msgs in self._message_inbox.items():
             for m in msgs:
                 m["ticks_ago"] += 1
+            # Keep messages with ticks_ago <= 10 (evict those that have aged past 10 ticks)
+            msgs[:] = [m for m in msgs if m["ticks_ago"] <= 10]
+            # Cap at 20 most recent messages
+            if len(msgs) > 20:
+                msgs.sort(key=lambda m: m["ticks_ago"])
+                msgs[:] = msgs[:20]

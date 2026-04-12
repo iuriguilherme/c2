@@ -20,7 +20,7 @@ import random
 from dotenv import load_dotenv
 import redis.asyncio as aioredis
 
-from genetics.pool import GenePool
+from genetics import GenePool
 from neural.pool import NeuronPool
 from agents.pool import ModelPool
 from agents.providers.ollama import OllamaProvider
@@ -28,6 +28,7 @@ from agents.providers.openrouter import OpenRouterProvider
 from agents.providers.anthropic import AnthropicProvider
 from environment.void import VoidEnvironment, Position
 from simulation.factory import EntityFactory
+from simulation.reproduction import ReproductionHandler
 from simulation.tick import TickEngine
 from storage.redis import RedisEntityRepository, RedisTickStream
 
@@ -64,7 +65,21 @@ async def main() -> None:
         model_pool._pool = [(providers[0], "llama3.2")]
 
     factory = EntityFactory(gene_pool=gene_pool, neuron_pool=neuron_pool)
-    engine = TickEngine(repo=repo, stream=stream, void=void, model_pool=model_pool)
+    reproduction_handler = ReproductionHandler(
+        repo=repo,
+        void=void,
+        factory=factory,
+        gene_pool=gene_pool,
+        model_pool=model_pool,
+    )
+    engine = TickEngine(
+        repo=repo,
+        stream=stream,
+        void=void,
+        model_pool=model_pool,
+        neuron_pool=neuron_pool,
+        reproduction_handler=reproduction_handler,
+    )
 
     rng = random.Random()
     for i in range(n_entities):

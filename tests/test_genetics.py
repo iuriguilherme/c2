@@ -50,7 +50,7 @@ def test_gene_definition_rejects_out_of_range_default():
 # ── Pool and reproduction ────────────────────────────────────────────────────
 
 import random
-from genetics.pool import GenePool
+from genetics import GenePool
 from genetics.reproduction import reproduce
 
 

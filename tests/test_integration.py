@@ -10,7 +10,7 @@ from unittest.mock import MagicMock
 
 import fakeredis.aioredis
 
-from genetics.pool import GenePool
+from genetics import GenePool
 from genetics.models import GeneType, GeneInstance
 from neural.pool import NeuronPool
 from agents.pool import ModelPool, ModelAssignment
@@ -208,7 +208,7 @@ async def test_two_providers_called_in_same_simulation():
 async def test_different_neuron_configs_different_manifests():
     """Entities with different genomes receive different Capability Manifests."""
     from neural.brain import Brain
-    from genetics.pool import GenePool
+    from genetics import GenePool
 
     gene_pool = GenePool.load()
     neuron_pool = NeuronPool.load()

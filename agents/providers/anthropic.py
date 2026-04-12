@@ -22,7 +22,7 @@ class AnthropicProvider:
 
     async def get_available_models(self) -> list[str]:
         # Anthropic doesn't expose a public model list endpoint; return known V1 models
-        return ["claude-opus-4-6", "claude-sonnet-4-6", "claude-haiku-4-5-20251001"]
+        return ["claude-opus-4-5", "claude-sonnet-4-6", "claude-haiku-4-5-20251001"]
 
     async def generate(
         self,
