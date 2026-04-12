@@ -8,7 +8,7 @@ import random
 import pytest
 from unittest.mock import MagicMock
 
-import fakeredis.aioredis
+import fakeredis
 
 from genetics import GenePool
 from genetics.models import GeneType, GeneInstance
@@ -34,7 +34,7 @@ def _mock_provider(name: str, response: str):
 
 @pytest.mark.asyncio
 async def test_full_simulation_two_entities_two_providers():
-    redis = fakeredis.aioredis.FakeRedis()
+    redis = fakeredis.FakeAsyncRedis()
     repo = RedisEntityRepository(redis)
     stream = RedisTickStream(redis)
     void = VoidEnvironment(width=500.0, height=500.0)
@@ -145,7 +145,7 @@ async def test_full_simulation_two_entities_two_providers():
 @pytest.mark.asyncio
 async def test_two_providers_called_in_same_simulation():
     """Both Ollama and OpenRouter providers are called within the same tick."""
-    redis = fakeredis.aioredis.FakeRedis()
+    redis = fakeredis.FakeAsyncRedis()
     repo = RedisEntityRepository(redis)
     stream = RedisTickStream(redis)
     void = VoidEnvironment()

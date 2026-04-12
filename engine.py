@@ -38,11 +38,23 @@ logger = logging.getLogger(__name__)
 
 
 async def main() -> None:
-    redis_url = os.environ.get("REDIS_URL", "redis://localhost:6379")
-    void_w = float(os.environ.get("VOID_WIDTH", "1000.0"))
-    void_h = float(os.environ.get("VOID_HEIGHT", "1000.0"))
-    n_entities = int(os.environ.get("INITIAL_ENTITIES", "5"))
-    tick_interval = float(os.environ.get("TICK_INTERVAL_SEC", "2.0"))
+    import json
+    settings_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "settings.json")
+    settings = {}
+    if os.path.exists(settings_path):
+        try:
+            with open(settings_path, "r") as f:
+                settings = json.load(f)
+        except Exception as e:
+            logger.error(f"Failed to read {settings_path}: {e}")
+
+    # Fallback order: os.environ overrides -> settings.json -> hardcoded defaults
+    redis_url = os.environ.get("REDIS_URL", settings.get("redis_url", "redis://localhost:6379"))
+    void_w = float(os.environ.get("VOID_WIDTH", settings.get("void_width", 1000.0)))
+    void_h = float(os.environ.get("VOID_HEIGHT", settings.get("void_height", 1000.0)))
+    n_entities = int(os.environ.get("INITIAL_ENTITIES", settings.get("initial_entities", 5)))
+    tick_interval = float(os.environ.get("TICK_INTERVAL_SEC", settings.get("tick_interval_sec", 2.0)))
+    ollama_base_url = os.environ.get("OLLAMA_BASE_URL", settings.get("ollama_base_url", "http://localhost:11434"))
 
     redis = aioredis.from_url(redis_url, decode_responses=False)
     repo = RedisEntityRepository(redis)
@@ -53,7 +65,7 @@ async def main() -> None:
     neuron_pool = NeuronPool.load()
 
     providers = [
-        OllamaProvider(base_url=os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434")),
+        OllamaProvider(base_url=ollama_base_url),
         OpenRouterProvider(),
         AnthropicProvider(),
     ]
@@ -61,8 +73,9 @@ async def main() -> None:
     await model_pool.discover(providers)
 
     if model_pool.size == 0:
-        logger.warning("No models available — using Ollama with llama3.2 as fallback")
-        model_pool._pool = [(providers[0], "llama3.2")]
+        default_model = settings.get("ollama_default_model", "llama3.2")
+        logger.warning(f"No models available — using Ollama with {default_model} as fallback")
+        model_pool._pool = [(providers[0], default_model)]
 
     factory = EntityFactory(gene_pool=gene_pool, neuron_pool=neuron_pool)
     reproduction_handler = ReproductionHandler(

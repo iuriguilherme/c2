@@ -10,10 +10,21 @@ _redis: aioredis.Redis | None = None
 @app.before_serving
 async def startup() -> None:
     global _redis
-    _redis = aioredis.from_url(
-        os.environ.get("REDIS_URL", "redis://localhost:6379"),
-        decode_responses=False,
-    )
+
+    redis_url = "redis://localhost:6379"
+    import json
+    settings_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "settings.json")
+    if os.path.exists(settings_path):
+        try:
+            with open(settings_path, "r") as f:
+                settings = json.load(f)
+                redis_url = settings.get("redis_url", redis_url)
+        except Exception:
+            pass
+
+    redis_url = os.environ.get("REDIS_URL", redis_url)
+
+    _redis = aioredis.from_url(redis_url, decode_responses=False)
 
 
 @app.after_serving
