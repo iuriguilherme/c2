@@ -1,6 +1,7 @@
 ---
 title: AGI Entity Simulation V1 — Architecture and Design Patterns
 date: 2026-04-11
+last_updated: 2026-04-12
 type: knowledge
 problem_type: architecture_decision
 track: knowledge
@@ -261,4 +262,4 @@ def age_messages(self) -> None:
 | `storage/redis.py` | Redis repository and tick stream; key naming conventions |
 | `environment/void.py` | VoidEnvironment, message inbox, age_messages eviction |
 | `simulation/factory.py` | EntityFactory — genome + neuron pool + model assignment → Entity |
-| `docs/plans/2026-03-26-001-feat-agi-entity-simulation-v1-plan.md` | Full design rationale, resolved decisions, requirements trace |
+| `docs/plans/archive/2026-03-26-001-feat-agi-entity-simulation-v1-plan.md` | Full design rationale, resolved decisions, requirements trace |
