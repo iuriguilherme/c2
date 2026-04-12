@@ -89,17 +89,14 @@ task.add_done_callback(
 
 ---
 
-## 5. Two-generation integration test
+## 5. ~~Two-generation integration test~~ ✓ DONE
 
-**File:** `tests/test_integration.py` or `tests/test_tick_engine.py`
+`tests/test_tick_engine.py::test_integration_two_generation_via_tick` exists and passes (verified 2026-04-12). Exercises `TickEngine.tick()` → `spawn_offspring` → `repo.list_living()` with genome inheritance assertion.
 
-Unit 1 plan verification criterion specifies: *"tests/test_integration.py two-generation test passes using the production TickEngine.tick() call path, not manual spawn_offspring() calls."* This test was not written in the completion sprint — the existing integration tests exercise the tick loop and genetics but do not assert that an entity with a `divide` cached action produces an offspring that subsequently appears in `repo.list_living()`.
+---
 
-**Test outline:**
-1. Create entity with `divide` action pre-cached and `reproduction_threshold` set low
-2. Run `tick_engine.tick(1)` — `_execute_action` should dispatch `spawn_offspring`
-3. Allow the task to complete (`await asyncio.sleep(0)` or use `asyncio.gather`)
-4. Assert `len(await repo.list_living()) == 2`
-5. Load offspring entity and assert its genome is a mutated child of the parent's genome
+## 6. Document R15 provider deviation
 
-**Why it matters:** This is the only end-to-end proof that genetics → neural → agent → tick → reproduction → genetics works in sequence.
+**Context:** The brainstorm (`docs/brainstorms/archive/2026-03-26-agi-entity-simulation-requirements.md`) specified Anthropic Claude via `claude-agent-acp`. Implementation used the `anthropic` Python SDK directly (`agents/providers/anthropic.py:3: import anthropic as sdk`). `claude-agent-acp` was never a real installable Python package.
+
+**Action:** Add a note in the architecture solution doc (`docs/solutions/best-practices/agi-entity-simulation-v1-architecture-2026-04-11.md`) under the Anthropic provider entry clarifying that the unified `LLMProvider` Protocol is satisfied by the `anthropic` SDK — not ACP — and why ACP was dropped.
