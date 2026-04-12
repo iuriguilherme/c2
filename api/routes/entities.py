@@ -20,5 +20,5 @@ async def get_archived_entity(entity_id: str, redis=Depends(get_redis)) -> dict:
     repo = RedisEntityRepository(redis)
     data = await repo.load_archive(entity_id)
     if data is None:
-        raise HTTPException(status_code=404, detail=f"Archived entity '{entity_id}' not found")
+        raise HTTPException(status_code=404, detail="Archived entity not found")
     return data

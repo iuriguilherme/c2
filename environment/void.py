@@ -105,7 +105,7 @@ class VoidEnvironment:
         for entity_id, msgs in self._message_inbox.items():
             for m in msgs:
                 m["ticks_ago"] += 1
-            # Evict messages older than 10 ticks
+            # Keep messages with ticks_ago <= 10 (evict those that have aged past 10 ticks)
             msgs[:] = [m for m in msgs if m["ticks_ago"] <= 10]
             # Cap at 20 most recent messages
             if len(msgs) > 20:
