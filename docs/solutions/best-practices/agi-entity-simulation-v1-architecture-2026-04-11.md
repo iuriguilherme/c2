@@ -124,6 +124,10 @@ async def tick(self, tick: int) -> None:
     await self._stream.publish_tick(tick=tick, entity_count=len(entity_ids))
 
 async def _process_entity(self, entity_id: str, tick: int) -> None:
+    # Load entity state from Redis
+    data = await self._repo.load(entity_id)
+    entity = self._load_entity(data)
+
     # Phase A: Execute action decided LAST tick
     if entity.cached_action and entity.cached_action_tick >= 0:
         await self._execute_action(entity, entity.cached_action)
@@ -134,6 +138,9 @@ async def _process_entity(self, entity_id: str, tick: int) -> None:
         if output and output.is_valid_for_manifest(manifest):
             entity.cached_action = raw
             entity.cached_action_tick = tick
+        # LLM may also update the entity's user_prompt (self-reflection)
+        if output and output.user_prompt_update:
+            entity.user_prompt = output.user_prompt_update
     await self._repo.save(entity_id, entity.to_storage_dict())
 ```
 
@@ -183,7 +190,8 @@ async def lifespan(app: FastAPI):
 ### 503 Guard + entity_id Validation (`api/routes/entities.py`)
 
 ```python
-def get_redis():
+# Note: _redis_client type is Redis | FakeRedis; add a type alias for cleaner annotations
+def get_redis() -> "Redis | FakeRedis":
     if _redis_client is None:
         raise HTTPException(status_code=503, detail="Storage not ready")
     return _redis_client
@@ -231,7 +239,7 @@ def age_messages(self) -> None:
         msgs[:] = [m for m in msgs if m["ticks_ago"] <= 10]
         # Cap at 20 most recent
         if len(msgs) > 20:
-            msgs.sort(key=lambda m: m["ticks_ago"])
+            msgs.sort(key=lambda msg: msg["ticks_ago"])
             msgs[:] = msgs[:20]
 ```
 

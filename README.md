@@ -4,21 +4,66 @@
 **G**enetic-simulated  
 **I**ndividual-organisms  
 
+A simulation where individual entities evolve genetically, perceive their environment through a neural capability system, and make decisions via LLM reasoning.
+
+## What it does
+
+Each entity has three interacting layers:
+
+- **Genetic** — heritable traits (lifespan, brain size, think interval, personality seed) that mutate across asexual reproduction
+- **Neural** — a brain wired from a neuron pool; generates a Capability Manifest each tick describing what the entity can perceive and what actions are available
+- **Agent** — an LLM (Anthropic, Ollama, OpenRouter, or LM Studio) reads the manifest and returns a JSON action
+
+The world runs on a hybrid tick engine: world state advances synchronously every tick, while LLM calls happen asynchronously and are cached for the next tick.
+
+## Running
+
+### With Docker
+
+```bash
+docker-compose up
+```
+
+Services: Redis, FastAPI API (`:8000`), Quart web UI (`:5000`), simulation engine.
+
+### Without Docker
+
+```bash
+pip install -e ".[dev]"
+# Start Redis separately, then:
+python engine.py          # simulation engine
+uvicorn api.main:app      # REST API
+hypercorn web.main:app    # web UI
+```
+
+Copy `.env.example` to `.env` and set `REDIS_URL` and any provider API keys.
+
+## Environment variables
+
+| Variable | Default | Description |
+|---|---|---|
+| `REDIS_URL` | `redis://localhost:6379` | Redis connection string |
+| `ANTHROPIC_API_KEY` | — | Anthropic API key |
+| `OPENROUTER_API_KEY` | — | OpenRouter API key |
+| `OLLAMA_BASE_URL` | `http://localhost:11434` | Ollama server URL |
+| `INITIAL_ENTITIES` | `5` | Number of entities at simulation start |
+| `TICK_INTERVAL_SEC` | `2.0` | Seconds between ticks |
+| `VOID_WIDTH` / `VOID_HEIGHT` | `1000.0` | Void coordinate space dimensions |
+
+## Tests
+
+```bash
+pytest
+```
+
+113 tests. Requires no external services (fakeredis used automatically).
+
+## Architecture
+
+See [`docs/solutions/best-practices/agi-entity-simulation-v1-architecture-2026-04-11.md`](docs/solutions/best-practices/agi-entity-simulation-v1-architecture-2026-04-11.md) for detailed design decisions, key patterns, and code examples.
+
 ## License
 
-GPLv3 - see [LICENSE](./LICENSE)
+GPLv3 — see [LICENSE](./LICENSE)
 
     Copyright (C) 2026  Iuri Guilherme
-
-    This program is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
-
-    This program is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License
-    along with this program.  If not, see <https://www.gnu.org/licenses/>.
