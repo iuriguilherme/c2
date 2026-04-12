@@ -101,6 +101,7 @@ def get_settings():
 def update_settings(settings: SettingsModel):
     """Update simulation settings for Ollama."""
     current = get_settings_data()
+    # We update current config with what is allowed from SettingsModel
     current.update(settings.model_dump())
     try:
         with open(SETTINGS_FILE, "w") as f:
