@@ -13,4 +13,26 @@ class LMStudioProvider(OllamaProvider):
         async with httpx.AsyncClient(timeout=10.0) as client:
             r = await client.get(f"{self.base_url}/v1/models")
             r.raise_for_status()
-            return [m["id"] for m in r.json().get("data", [])]
+            models_on_server = [m["id"] for m in r.json().get("data", [])]
+
+        import json
+        import os
+        _root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        settings_path = os.path.join(_root, "settings.json")
+        settings_example_path = os.path.join(_root, "settings.example.json")
+        allowed_models = None
+        for path in (settings_path, settings_example_path):
+            if os.path.exists(path):
+                try:
+                    with open(path, "r") as f:
+                        settings = json.load(f)
+                    if "lmstudio_allowed_models" in settings:
+                        allowed_models = settings["lmstudio_allowed_models"]
+                except Exception:
+                    pass
+                break
+
+        if allowed_models is None or not allowed_models:
+            return []
+
+        return [m for m in models_on_server if m in allowed_models]
