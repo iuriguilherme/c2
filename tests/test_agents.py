@@ -70,6 +70,18 @@ async def test_ollama_check_available_true():
 
 
 @pytest.mark.asyncio
+async def test_ollama_uses_api_key_when_provided():
+    with respx.mock:
+        route = respx.get("http://localhost:11434/api/tags").mock(
+            return_value=httpx.Response(200, json={"models": [{"name": "llama3.2"}]})
+        )
+        provider = OllamaProvider(base_url="http://localhost:11434", api_key="test-key")
+        assert await provider.check_available() is True
+        assert route.called
+        assert route.calls.last.request.headers.get("Authorization") == "Bearer test-key"
+
+
+@pytest.mark.asyncio
 async def test_ollama_check_available_false_on_connection_error():
     with respx.mock:
         respx.get("http://localhost:11434/api/tags").mock(
@@ -80,17 +92,75 @@ async def test_ollama_check_available_false_on_connection_error():
 
 
 @pytest.mark.asyncio
-async def test_ollama_available_models():
-    with respx.mock:
-        respx.get("http://localhost:11434/api/tags").mock(
-            return_value=httpx.Response(
-                200, json={"models": [{"name": "llama3.2"}, {"name": "mistral"}]}
+async def test_ollama_available_models(monkeypatch, tmp_path):
+    import json
+    settings_file = tmp_path / "settings.json"
+    settings_file.write_text(json.dumps({"ollama_allowed_models": ["llama3.2", "mistral"]}))
+
+    import os
+    original_cwd = os.getcwd()
+    os.chdir(tmp_path)
+    monkeypatch.setattr("agents.providers.ollama.os.path.join", lambda *args: str(settings_file))
+    try:
+        with respx.mock:
+            respx.get("http://localhost:11434/api/tags").mock(
+                return_value=httpx.Response(
+                    200, json={"models": [{"name": "llama3.2"}, {"name": "mistral"}, {"name": "other"}]}
+                )
             )
-        )
-        provider = OllamaProvider(base_url="http://localhost:11434")
-        models = await provider.get_available_models()
-        assert "llama3.2" in models
-        assert "mistral" in models
+            provider = OllamaProvider(base_url="http://localhost:11434")
+            models = await provider.get_available_models()
+            assert "llama3.2" in models
+            assert "mistral" in models
+            assert "other" not in models
+    finally:
+        os.chdir(original_cwd)
+
+
+@pytest.mark.asyncio
+async def test_ollama_available_models_empty_allowed(monkeypatch, tmp_path):
+    import json
+    settings_file = tmp_path / "settings.json"
+    settings_file.write_text(json.dumps({"ollama_allowed_models": []}))
+
+    import os
+    original_cwd = os.getcwd()
+    os.chdir(tmp_path)
+    monkeypatch.setattr("agents.providers.ollama.os.path.join", lambda *args: str(settings_file))
+    try:
+        with respx.mock:
+            respx.get("http://localhost:11434/api/tags").mock(
+                return_value=httpx.Response(
+                    200, json={"models": [{"name": "llama3.2"}, {"name": "mistral"}]}
+                )
+            )
+            provider = OllamaProvider(base_url="http://localhost:11434")
+            models = await provider.get_available_models()
+            assert len(models) == 0
+    finally:
+        os.chdir(original_cwd)
+
+
+@pytest.mark.asyncio
+async def test_ollama_available_models_missing_file_allowed(monkeypatch, tmp_path):
+    import os
+    original_cwd = os.getcwd()
+    os.chdir(tmp_path)
+    fake_path = str(tmp_path / "settings.json")
+    monkeypatch.setattr("agents.providers.ollama.os.path.join", lambda *args: fake_path)
+    # File does not exist here
+    try:
+        with respx.mock:
+            respx.get("http://localhost:11434/api/tags").mock(
+                return_value=httpx.Response(
+                    200, json={"models": [{"name": "llama3.2"}, {"name": "mistral"}]}
+                )
+            )
+            provider = OllamaProvider(base_url="http://localhost:11434")
+            models = await provider.get_available_models()
+            assert len(models) == 0
+    finally:
+        os.chdir(original_cwd)
 
 
 @pytest.mark.asyncio

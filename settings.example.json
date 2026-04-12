@@ -1,0 +1,12 @@
+{
+  "ollama_allowed_models": [],
+  "ollama_default_model": "llama3.2",
+  "ollama_base_url": "http://localhost:11434",
+  "lmstudio_base_url": "http://localhost:1234",
+  "redis_url": "redis://localhost:6379",
+  "api_base_url": "http://localhost:8000",
+  "void_width": 1000.0,
+  "void_height": 1000.0,
+  "initial_entities": 5,
+  "tick_interval_sec": 2.0
+}

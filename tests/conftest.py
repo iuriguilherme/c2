@@ -9,7 +9,7 @@ sys.path.insert(0, str(project_root))
 
 import random
 import pytest
-import fakeredis.aioredis
+import fakeredis
 
 from genetics.gene_pool import GenePool
 from genetics.models import GeneType, GeneInstance, Genome
@@ -18,7 +18,7 @@ from genetics.models import GeneType, GeneInstance, Genome
 @pytest.fixture
 async def redis():
     """Provide a fake Redis instance for testing."""
-    r = fakeredis.aioredis.FakeRedis()
+    r = fakeredis.FakeAsyncRedis()
     yield r
     await r.aclose()
 

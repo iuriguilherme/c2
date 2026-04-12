@@ -12,6 +12,9 @@
   th, td { border: 1px solid #1a1a1a; padding: 6px 10px; text-align: left; }
   th { color: #888; font-weight: normal; }
   td { color: #ccc; }
+  .section { margin-top: 40px; border-top: 1px solid #333; padding-top: 20px; }
+  input, button { background: #1a1a1a; color: #0f0; border: 1px solid #333; padding: 4px 8px; font-family: monospace; }
+  button:hover { background: #333; cursor: pointer; }
 </style>
 </head>
 <body>
@@ -24,7 +27,42 @@
   </thead>
   <tbody id="entities"></tbody>
 </table>
+
+<div class="section">
+  <h2>Ollama Management</h2>
+  <div style="margin-bottom: 20px;">
+    <strong>Local Downloaded Models</strong>
+    <table>
+      <thead>
+        <tr><th>Name</th><th>Size</th><th>Action</th></tr>
+      </thead>
+      <tbody id="ollama-models"></tbody>
+    </table>
+  </div>
+
+  <div style="margin-bottom: 20px;">
+    <strong>Pull New Model</strong><br>
+    <input type="text" id="pull-model-name" placeholder="e.g. mistral">
+    <button onclick="pullModel()" id="btn-pull">Pull</button>
+    <span id="pull-status" style="margin-left: 10px; color: #aaa;"></span>
+  </div>
+
+  <div>
+    <strong>Simulation Settings</strong><br>
+    <label>Allowed Models (comma separated, empty for none):</label><br>
+    <input type="text" id="settings-allowed" style="width: 300px;"><br><br>
+    <label>Default Fallback Model:</label><br>
+    <input type="text" id="settings-default" style="width: 300px;"><br><br>
+    <button onclick="saveSettings()">Save Settings</button>
+    <span id="settings-status" style="margin-left: 10px; color: #aaa;"></span>
+  </div>
+</div>
+
 <script>
+const API_URL = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1"
+    ? "http://localhost:8000"
+    : window.location.origin.replace("5000", "8000");
+
 async function refresh() {
   const r = await fetch('/api/state');
   const d = await r.json();
@@ -35,7 +73,104 @@ async function refresh() {
     `<tr><td>${e.id}</td><td>${e.age}</td><td>${parseFloat(e.position_x).toFixed(1)}</td><td>${parseFloat(e.position_y).toFixed(1)}</td><td>${e.provider}</td><td>${e.model}</td></tr>`
   ).join('');
 }
+
+async function loadOllamaModels() {
+  try {
+    const r = await fetch(`${API_URL}/ollama/models`);
+    if (!r.ok) throw new Error(await r.text());
+    const d = await r.json();
+    const models = d.models || [];
+    const tbody = document.getElementById('ollama-models');
+    tbody.innerHTML = models.map(m =>
+      `<tr>
+        <td>${m.name}</td>
+        <td>${(m.size / 1024 / 1024 / 1024).toFixed(2)} GB</td>
+        <td><button onclick="deleteModel('${m.name}')">Delete</button></td>
+      </tr>`
+    ).join('');
+  } catch (e) {
+    document.getElementById('ollama-models').innerHTML = `<tr><td colspan="3" style="color:red">Error loading models: ${e.message}</td></tr>`;
+  }
+}
+
+async function loadSettings() {
+  try {
+    const r = await fetch(`${API_URL}/ollama/settings`);
+    if (!r.ok) throw new Error("Failed to load settings");
+    const d = await r.json();
+    document.getElementById('settings-allowed').value = d.ollama_allowed_models ? d.ollama_allowed_models.join(', ') : '';
+    document.getElementById('settings-default').value = d.ollama_default_model || '';
+  } catch (e) {
+    console.error(e);
+  }
+}
+
+async function saveSettings() {
+  const allowedRaw = document.getElementById('settings-allowed').value;
+  const allowed = allowedRaw ? allowedRaw.split(',').map(s => s.trim()).filter(Boolean) : [];
+  const defaultModel = document.getElementById('settings-default').value;
+  const status = document.getElementById('settings-status');
+
+  try {
+    const r = await fetch(`${API_URL}/ollama/settings`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ollama_allowed_models: allowed, ollama_default_model: defaultModel })
+    });
+    if (!r.ok) throw new Error(await r.text());
+    status.textContent = "Saved!";
+    setTimeout(() => status.textContent = "", 3000);
+  } catch (e) {
+    status.textContent = `Error: ${e.message}`;
+    status.style.color = "red";
+  }
+}
+
+async function pullModel() {
+  const name = document.getElementById('pull-model-name').value;
+  if (!name) return;
+  const btn = document.getElementById('btn-pull');
+  const status = document.getElementById('pull-status');
+
+  btn.disabled = true;
+  status.textContent = "Pulling... (this may take a while)";
+  status.style.color = "#aaa";
+
+  try {
+    const r = await fetch(`${API_URL}/ollama/pull`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: name })
+    });
+    if (!r.ok) throw new Error(await r.text());
+    status.textContent = "Success!";
+    status.style.color = "#0f0";
+    document.getElementById('pull-model-name').value = '';
+    loadOllamaModels();
+  } catch (e) {
+    status.textContent = `Error: ${e.message}`;
+    status.style.color = "red";
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function deleteModel(name) {
+  if (!confirm(`Are you sure you want to delete ${name}?`)) return;
+  try {
+    const r = await fetch(`${API_URL}/ollama/models/${encodeURIComponent(name)}`, {
+      method: 'DELETE'
+    });
+    if (!r.ok) throw new Error(await r.text());
+    loadOllamaModels();
+  } catch (e) {
+    alert(`Error deleting model: ${e.message}`);
+  }
+}
+
 refresh();
+loadOllamaModels();
+loadSettings();
 setInterval(refresh, 2000);
 </script>
 </body>
