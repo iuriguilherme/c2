@@ -21,14 +21,22 @@ async def lifespan(app: FastAPI):
 
         redis_url = "redis://localhost:6379"
         import json
-        settings_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "settings.json")
-        if os.path.exists(settings_path):
-            try:
-                with open(settings_path, "r") as f:
-                    settings = json.load(f)
-                    redis_url = settings.get("redis_url", redis_url)
-            except Exception:
-                pass
+        _root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        for settings_path in (
+            os.path.join(_root, "settings.json"),
+            os.path.join(_root, "settings.example.json"),
+        ):
+            if os.path.exists(settings_path):
+                try:
+                    with open(settings_path, "r") as f:
+                        settings = json.load(f)
+                        redis_url = settings.get("redis_url", redis_url)
+                    break
+                except Exception as exc:
+                    logger.warning(
+                        "Failed to load Redis settings from %s (%s: %s) — using defaults/environment overrides.",
+                        settings_path, type(exc).__name__, exc,
+                    )
 
         redis_url = os.environ.get("REDIS_URL", redis_url)
 

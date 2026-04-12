@@ -6,7 +6,9 @@ from pydantic import BaseModel
 
 router = APIRouter(prefix="/ollama", tags=["ollama"])
 
-SETTINGS_FILE = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "settings.json")
+_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+SETTINGS_FILE = os.path.join(_ROOT, "settings.json")
+SETTINGS_EXAMPLE_FILE = os.path.join(_ROOT, "settings.example.json")
 
 class SettingsModel(BaseModel):
     ollama_allowed_models: list[str]
@@ -16,12 +18,13 @@ class PullModelRequest(BaseModel):
     model: str
 
 def get_settings_data() -> dict:
-    if os.path.exists(SETTINGS_FILE):
-        try:
-            with open(SETTINGS_FILE, "r") as f:
-                return json.load(f)
-        except Exception:
-            pass
+    for path in (SETTINGS_FILE, SETTINGS_EXAMPLE_FILE):
+        if os.path.exists(path):
+            try:
+                with open(path, "r") as f:
+                    return json.load(f)
+            except Exception:
+                pass
     return {}
 
 def get_base_url() -> str:

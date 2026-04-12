@@ -32,16 +32,20 @@ class OllamaProvider:
             r.raise_for_status()
             models_on_server = [m["name"] for m in r.json().get("models", [])]
 
-        settings_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "settings.json")
+        _root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        settings_path = os.path.join(_root, "settings.json")
+        settings_example_path = os.path.join(_root, "settings.example.json")
         allowed_models = None
-        if os.path.exists(settings_path):
-            try:
-                with open(settings_path, "r") as f:
-                    settings = json.load(f)
-                if "ollama_allowed_models" in settings:
-                    allowed_models = settings["ollama_allowed_models"]
-            except Exception:
-                pass
+        for path in (settings_path, settings_example_path):
+            if os.path.exists(path):
+                try:
+                    with open(path, "r") as f:
+                        settings = json.load(f)
+                    if "ollama_allowed_models" in settings:
+                        allowed_models = settings["ollama_allowed_models"]
+                except Exception:
+                    pass
+                break
 
         if allowed_models is None or not allowed_models:
             return []

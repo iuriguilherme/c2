@@ -39,14 +39,19 @@ logger = logging.getLogger(__name__)
 
 async def main() -> None:
     import json
-    settings_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "settings.json")
+    _root = os.path.dirname(os.path.abspath(__file__))
     settings = {}
-    if os.path.exists(settings_path):
-        try:
-            with open(settings_path, "r") as f:
-                settings = json.load(f)
-        except Exception as e:
-            logger.error(f"Failed to read {settings_path}: {e}")
+    for settings_path in (
+        os.path.join(_root, "settings.json"),
+        os.path.join(_root, "settings.example.json"),
+    ):
+        if os.path.exists(settings_path):
+            try:
+                with open(settings_path, "r") as f:
+                    settings = json.load(f)
+                break
+            except Exception as e:
+                logger.error(f"Failed to read {settings_path}: {e}")
 
     # Fallback order: os.environ overrides -> settings.json -> hardcoded defaults
     redis_url = os.environ.get("REDIS_URL", settings.get("redis_url", "redis://localhost:6379"))
