@@ -1,3 +1,5 @@
+import logging
+import os
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 import fakeredis.aioredis
@@ -5,6 +7,7 @@ from api.routes.genes import router as genes_router
 from api.routes.neurons import router as neurons_router
 from api.routes.entities import router as entities_router, set_redis_client
 
+logger = logging.getLogger(__name__)
 redis_client = None
 
 
@@ -13,11 +16,15 @@ async def lifespan(app: FastAPI):
     global redis_client
     try:
         from redis.asyncio import Redis
-        import os
         redis_url = os.environ.get("REDIS_URL", "redis://localhost:6379")
         redis_client = Redis.from_url(redis_url)
         await redis_client.ping()
-    except Exception:
+    except Exception as exc:
+        logger.warning(
+            "Redis unavailable (%s: %s) — falling back to in-process fakeredis. "
+            "All entity data will be lost on restart.",
+            type(exc).__name__, exc,
+        )
         redis_client = fakeredis.aioredis.FakeRedis()
     set_redis_client(redis_client)
     yield
