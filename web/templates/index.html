@@ -145,8 +145,10 @@ async function loadORSettings() {
     const r = await fetch(`${API_URL}/openrouter/settings`);
     if (!r.ok) throw new Error("Failed to load OpenRouter settings");
     const d = await r.json();
-    document.getElementById('settings-or-allowed').value = d.openrouter_allowed_models ? d.openrouter_allowed_models.join(', ') : '';
-    document.getElementById('settings-or-default').value = d.openrouter_default_model || '';
+    const allowed = d.openrouter_allowed_models ? (Array.isArray(d.openrouter_allowed_models) ? d.openrouter_allowed_models : d.openrouter_allowed_models.text || []) : [];
+    document.getElementById('settings-or-allowed').value = allowed.join(', ');
+    const defModel = d.openrouter_default_model ? (typeof d.openrouter_default_model === 'string' ? d.openrouter_default_model : d.openrouter_default_model.text || '') : '';
+    document.getElementById('settings-or-default').value = defModel;
   } catch (e) {
     console.error(e);
   }
@@ -159,10 +161,21 @@ async function saveORSettings() {
   const status = document.getElementById('settings-or-status');
 
   try {
+    let currentAllowed = {};
+    let currentDefault = {};
+    try {
+      const cr = await fetch(`${API_URL}/openrouter/settings`);
+      const cd = await cr.json();
+      currentAllowed = (!Array.isArray(cd.openrouter_allowed_models) && cd.openrouter_allowed_models) ? cd.openrouter_allowed_models : {};
+      currentDefault = (typeof cd.openrouter_default_model === 'object' && cd.openrouter_default_model) ? cd.openrouter_default_model : {};
+    } catch(e){}
+    currentAllowed.text = allowed;
+    currentDefault.text = defaultModel;
+
     const r = await fetch(`${API_URL}/openrouter/settings`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ openrouter_allowed_models: allowed, openrouter_default_model: defaultModel })
+      body: JSON.stringify({ openrouter_allowed_models: currentAllowed, openrouter_default_model: currentDefault })
     });
     if (!r.ok) throw new Error(await r.text());
     status.textContent = "Saved!";
@@ -178,8 +191,10 @@ async function loadLMSettings() {
     const r = await fetch(`${API_URL}/lmstudio/settings`);
     if (!r.ok) throw new Error("Failed to load LM Studio settings");
     const d = await r.json();
-    document.getElementById('settings-lm-allowed').value = d.lmstudio_allowed_models ? d.lmstudio_allowed_models.join(', ') : '';
-    document.getElementById('settings-lm-default').value = d.lmstudio_default_model || '';
+    const allowed = d.lmstudio_allowed_models ? (Array.isArray(d.lmstudio_allowed_models) ? d.lmstudio_allowed_models : d.lmstudio_allowed_models.text || []) : [];
+    document.getElementById('settings-lm-allowed').value = allowed.join(', ');
+    const defModel = d.lmstudio_default_model ? (typeof d.lmstudio_default_model === 'string' ? d.lmstudio_default_model : d.lmstudio_default_model.text || '') : '';
+    document.getElementById('settings-lm-default').value = defModel;
   } catch (e) {
     console.error(e);
   }
@@ -192,10 +207,21 @@ async function saveLMSettings() {
   const status = document.getElementById('settings-lm-status');
 
   try {
+    let currentAllowed = {};
+    let currentDefault = {};
+    try {
+      const cr = await fetch(`${API_URL}/lmstudio/settings`);
+      const cd = await cr.json();
+      currentAllowed = (!Array.isArray(cd.lmstudio_allowed_models) && cd.lmstudio_allowed_models) ? cd.lmstudio_allowed_models : {};
+      currentDefault = (typeof cd.lmstudio_default_model === 'object' && cd.lmstudio_default_model) ? cd.lmstudio_default_model : {};
+    } catch(e){}
+    currentAllowed.text = allowed;
+    currentDefault.text = defaultModel;
+
     const r = await fetch(`${API_URL}/lmstudio/settings`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ lmstudio_allowed_models: allowed, lmstudio_default_model: defaultModel })
+      body: JSON.stringify({ lmstudio_allowed_models: currentAllowed, lmstudio_default_model: currentDefault })
     });
     if (!r.ok) throw new Error(await r.text());
     status.textContent = "Saved!";
@@ -230,8 +256,10 @@ async function loadSettings() {
     const r = await fetch(`${API_URL}/ollama/settings`);
     if (!r.ok) throw new Error("Failed to load settings");
     const d = await r.json();
-    document.getElementById('settings-allowed').value = d.ollama_allowed_models ? d.ollama_allowed_models.join(', ') : '';
-    document.getElementById('settings-default').value = d.ollama_default_model || '';
+    const allowed = d.ollama_allowed_models ? (Array.isArray(d.ollama_allowed_models) ? d.ollama_allowed_models : d.ollama_allowed_models.text || []) : [];
+    document.getElementById('settings-allowed').value = allowed.join(', ');
+    const defModel = d.ollama_default_model ? (typeof d.ollama_default_model === 'string' ? d.ollama_default_model : d.ollama_default_model.text || '') : '';
+    document.getElementById('settings-default').value = defModel;
   } catch (e) {
     console.error(e);
   }
@@ -244,10 +272,23 @@ async function saveSettings() {
   const status = document.getElementById('settings-status');
 
   try {
+    // Fetch current first
+    let currentAllowed = {};
+    let currentDefault = {};
+    try {
+      const cr = await fetch(`${API_URL}/ollama/settings`);
+      const cd = await cr.json();
+      currentAllowed = (!Array.isArray(cd.ollama_allowed_models) && cd.ollama_allowed_models) ? cd.ollama_allowed_models : {};
+      currentDefault = (typeof cd.ollama_default_model === 'object' && cd.ollama_default_model) ? cd.ollama_default_model : {};
+    } catch(e){}
+
+    currentAllowed.text = allowed;
+    currentDefault.text = defaultModel;
+
     const r = await fetch(`${API_URL}/ollama/settings`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ollama_allowed_models: allowed, ollama_default_model: defaultModel })
+      body: JSON.stringify({ ollama_allowed_models: currentAllowed, ollama_default_model: currentDefault })
     });
     if (!r.ok) throw new Error(await r.text());
     status.textContent = "Saved!";

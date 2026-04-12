@@ -1,6 +1,54 @@
 {
-  "ollama_allowed_models": [],
-  "ollama_default_model": "llama3.2",
+  "ollama_allowed_models": {
+    "text": [
+      "qwen3:0.6b",
+      "granite4:350m",
+      "gemma3:270m",
+      "qwen2.5:0.5b",
+      "qwen2:0.5b",
+      "qwen:0.5b",
+      "smollm2:135m",
+      "bge-m3:567m",
+      "tinyllama:1.1b",
+      "smollm:135m",
+      "stablelm2:1.6b",
+      "tinydolphin:1.1b"
+    ],
+    "vl": [
+      "qwen3-vl:2b"
+    ],
+    "math": [
+      "qwen2-math:1.5b"
+    ],
+    "coder": [
+      "qwen2.5-coder:0.5b",
+      "deepseek-coder:1.3b",
+      "yi-coder:1.5b",
+      "starcoder:1b"
+    ],
+    "embedding": [
+      "qwen3-embedding:0.6b",
+      "embeddinggemma:300m",
+      "nomic-embed-text:v1.5",
+      "mxbai-embed-large:335m",
+      "snowflake-arctic-embed:22m",
+      "all-minilm:22m",
+      "paraphrase-multilingual:278m",
+      "snowflake-arctic-embed2:568m",
+      "granite-embedding:30m"
+    ],
+    "cloud": [
+      "gemma3:4b-cloud"
+    ]
+  },
+  "ollama_default_model": {
+    "text": "smollm2:135m",
+    "vl": "qwen3-vl:2b",
+    "math": "qwen2-math:1.5b",
+    "coding": "qwen2.5-coder:0.5b",
+    "embedding": "snowflake-arctic-embed:22m",
+    "cloud": "gemma3:4b-cloud"
+  },
   "ollama_base_url": "http://localhost:11434",
   "lmstudio_base_url": "http://localhost:1234",
   "redis_url": "redis://localhost:6379",
@@ -15,8 +63,16 @@
     "lmstudio",
     "anthropic"
   ],
-  "openrouter_allowed_models": [],
-  "openrouter_default_model": "",
-  "lmstudio_allowed_models": [],
-  "lmstudio_default_model": ""
+  "openrouter_allowed_models": {
+    "text": []
+  },
+  "openrouter_default_model": {
+    "text": "openai/gpt-4o-mini"
+  },
+  "lmstudio_allowed_models": {
+    "text": []
+  },
+  "lmstudio_default_model": {
+    "text": "llama-3"
+  }
 }

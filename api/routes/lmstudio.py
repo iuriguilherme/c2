@@ -11,8 +11,8 @@ SETTINGS_FILE = os.path.join(_ROOT, "settings.json")
 SETTINGS_EXAMPLE_FILE = os.path.join(_ROOT, "settings.example.json")
 
 class SettingsModel(BaseModel):
-    lmstudio_allowed_models: list[str]
-    lmstudio_default_model: str
+    lmstudio_allowed_models: dict[str, list[str]]
+    lmstudio_default_model: dict[str, str]
 
 def get_settings_data() -> dict:
     for path in (SETTINGS_FILE, SETTINGS_EXAMPLE_FILE):
@@ -49,8 +49,8 @@ def get_settings():
     """Get simulation settings for LM Studio."""
     settings = get_settings_data()
     return {
-        "lmstudio_allowed_models": settings.get("lmstudio_allowed_models", []),
-        "lmstudio_default_model": settings.get("lmstudio_default_model", "")
+        "lmstudio_allowed_models": settings.get("lmstudio_allowed_models", {}),
+        "lmstudio_default_model": settings.get("lmstudio_default_model", {})
     }
 
 @router.post("/settings")

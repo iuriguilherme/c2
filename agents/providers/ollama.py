@@ -32,6 +32,8 @@ class OllamaProvider:
             r.raise_for_status()
             models_on_server = [m["name"] for m in r.json().get("models", [])]
 
+        import json
+        import os
         _root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
         settings_path = os.path.join(_root, "settings.json")
         settings_example_path = os.path.join(_root, "settings.example.json")
@@ -42,7 +44,11 @@ class OllamaProvider:
                     with open(path, "r") as f:
                         settings = json.load(f)
                     if "ollama_allowed_models" in settings:
-                        allowed_models = settings["ollama_allowed_models"]
+                        allowed_settings = settings["ollama_allowed_models"]
+                        if isinstance(allowed_settings, dict):
+                            allowed_models = allowed_settings.get("text", [])
+                        else:
+                            allowed_models = allowed_settings
                 except Exception:
                     pass
                 break

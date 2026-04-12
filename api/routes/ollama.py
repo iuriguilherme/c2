@@ -11,8 +11,8 @@ SETTINGS_FILE = os.path.join(_ROOT, "settings.json")
 SETTINGS_EXAMPLE_FILE = os.path.join(_ROOT, "settings.example.json")
 
 class SettingsModel(BaseModel):
-    ollama_allowed_models: list[str]
-    ollama_default_model: str
+    ollama_allowed_models: dict[str, list[str]]
+    ollama_default_model: dict[str, str]
 
 class PullModelRequest(BaseModel):
     model: str

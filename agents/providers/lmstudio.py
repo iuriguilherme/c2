@@ -27,7 +27,11 @@ class LMStudioProvider(OllamaProvider):
                     with open(path, "r") as f:
                         settings = json.load(f)
                     if "lmstudio_allowed_models" in settings:
-                        allowed_models = settings["lmstudio_allowed_models"]
+                        allowed_settings = settings["lmstudio_allowed_models"]
+                        if isinstance(allowed_settings, dict):
+                            allowed_models = allowed_settings.get("text", [])
+                        else:
+                            allowed_models = allowed_settings
                 except Exception:
                     pass
                 break

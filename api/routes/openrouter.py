@@ -11,8 +11,8 @@ SETTINGS_FILE = os.path.join(_ROOT, "settings.json")
 SETTINGS_EXAMPLE_FILE = os.path.join(_ROOT, "settings.example.json")
 
 class SettingsModel(BaseModel):
-    openrouter_allowed_models: list[str]
-    openrouter_default_model: str
+    openrouter_allowed_models: dict[str, list[str]]
+    openrouter_default_model: dict[str, str]
 
 def get_settings_data() -> dict:
     for path in (SETTINGS_FILE, SETTINGS_EXAMPLE_FILE):
@@ -52,8 +52,8 @@ def get_settings():
     """Get simulation settings for OpenRouter."""
     settings = get_settings_data()
     return {
-        "openrouter_allowed_models": settings.get("openrouter_allowed_models", []),
-        "openrouter_default_model": settings.get("openrouter_default_model", "")
+        "openrouter_allowed_models": settings.get("openrouter_allowed_models", {}),
+        "openrouter_default_model": settings.get("openrouter_default_model", {})
     }
 
 @router.post("/settings")
