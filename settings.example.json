@@ -8,5 +8,15 @@
   "void_width": 1000.0,
   "void_height": 1000.0,
   "initial_entities": 5,
-  "tick_interval_sec": 2.0
+  "tick_interval_sec": 2.0,
+  "allowed_providers": [
+    "ollama",
+    "openrouter",
+    "lmstudio",
+    "anthropic"
+  ],
+  "openrouter_allowed_models": [],
+  "openrouter_default_model": "",
+  "lmstudio_allowed_models": [],
+  "lmstudio_default_model": ""
 }

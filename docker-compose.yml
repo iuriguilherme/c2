@@ -14,8 +14,10 @@ services:
       - "8000:8000"
     environment:
       - REDIS_URL=redis://redis:6379
+      - OLLAMA_BASE_URL=http://ollama:11434
     depends_on:
       - redis
+      - ollama
     volumes:
       - .:/app
     working_dir: /app
@@ -27,8 +29,10 @@ services:
       - "5000:5000"
     environment:
       - REDIS_URL=redis://redis:6379
+      - OLLAMA_BASE_URL=http://ollama:11434
     depends_on:
       - redis
+      - ollama
     volumes:
       - .:/app
     working_dir: /app
@@ -38,15 +42,24 @@ services:
     command: python engine.py
     environment:
       - REDIS_URL=redis://redis:6379
+      - OLLAMA_BASE_URL=http://ollama:11434
       - INITIAL_ENTITIES=5
       - TICK_INTERVAL_SEC=2.0
       - VOID_WIDTH=1000.0
       - VOID_HEIGHT=1000.0
     depends_on:
       - redis
+      - ollama
     volumes:
       - .:/app
     working_dir: /app
+
+  ollama:
+    image: ollama/ollama:latest
+    ports:
+      - "11434:11434"
+    volumes:
+      - ${OLLAMA_MODELS_DIR:-./ollama_models}:/root/.ollama
 
 volumes:
   redis_data:

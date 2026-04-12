@@ -29,6 +29,16 @@
 </table>
 
 <div class="section">
+  <h2>Global Settings</h2>
+  <div>
+    <label>Allowed Providers (comma separated):</label><br>
+    <input type="text" id="settings-global-providers" style="width: 400px;" placeholder="e.g. ollama, openrouter, lmstudio, anthropic"><br><br>
+    <button onclick="saveGlobalSettings()">Save Global Settings</button>
+    <span id="settings-global-status" style="margin-left: 10px; color: #aaa;"></span>
+  </div>
+</div>
+
+<div class="section">
   <h2>Ollama Management</h2>
   <div style="margin-bottom: 20px;">
     <strong>Local Downloaded Models</strong>
@@ -58,6 +68,30 @@
   </div>
 </div>
 
+<div class="section">
+  <h2>OpenRouter Settings</h2>
+  <div>
+    <label>Allowed Models (comma separated, empty for none):</label><br>
+    <input type="text" id="settings-or-allowed" style="width: 400px;"><br><br>
+    <label>Default Fallback Model:</label><br>
+    <input type="text" id="settings-or-default" style="width: 400px;"><br><br>
+    <button onclick="saveORSettings()">Save OpenRouter Settings</button>
+    <span id="settings-or-status" style="margin-left: 10px; color: #aaa;"></span>
+  </div>
+</div>
+
+<div class="section">
+  <h2>LM Studio Settings</h2>
+  <div>
+    <label>Allowed Models (comma separated, empty for none):</label><br>
+    <input type="text" id="settings-lm-allowed" style="width: 400px;"><br><br>
+    <label>Default Fallback Model:</label><br>
+    <input type="text" id="settings-lm-default" style="width: 400px;"><br><br>
+    <button onclick="saveLMSettings()">Save LM Studio Settings</button>
+    <span id="settings-lm-status" style="margin-left: 10px; color: #aaa;"></span>
+  </div>
+</div>
+
 <script>
 const API_URL = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1"
     ? "http://localhost:8000"
@@ -72,6 +106,104 @@ async function refresh() {
   tbody.innerHTML = d.entities.map(e =>
     `<tr><td>${e.id}</td><td>${e.age}</td><td>${parseFloat(e.position_x).toFixed(1)}</td><td>${parseFloat(e.position_y).toFixed(1)}</td><td>${e.provider}</td><td>${e.model}</td></tr>`
   ).join('');
+}
+
+
+async function loadGlobalSettings() {
+  try {
+    const r = await fetch(`${API_URL}/settings`);
+    if (!r.ok) throw new Error("Failed to load global settings");
+    const d = await r.json();
+    document.getElementById('settings-global-providers').value = d.allowed_providers ? d.allowed_providers.join(', ') : '';
+  } catch (e) {
+    console.error(e);
+  }
+}
+
+async function saveGlobalSettings() {
+  const allowedRaw = document.getElementById('settings-global-providers').value;
+  const allowed = allowedRaw ? allowedRaw.split(',').map(s => s.trim()).filter(Boolean) : [];
+  const status = document.getElementById('settings-global-status');
+
+  try {
+    const r = await fetch(`${API_URL}/settings`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ allowed_providers: allowed })
+    });
+    if (!r.ok) throw new Error(await r.text());
+    status.textContent = "Saved!";
+    setTimeout(() => status.textContent = "", 3000);
+  } catch (e) {
+    status.textContent = `Error: ${e.message}`;
+    status.style.color = "red";
+  }
+}
+
+async function loadORSettings() {
+  try {
+    const r = await fetch(`${API_URL}/openrouter/settings`);
+    if (!r.ok) throw new Error("Failed to load OpenRouter settings");
+    const d = await r.json();
+    document.getElementById('settings-or-allowed').value = d.openrouter_allowed_models ? d.openrouter_allowed_models.join(', ') : '';
+    document.getElementById('settings-or-default').value = d.openrouter_default_model || '';
+  } catch (e) {
+    console.error(e);
+  }
+}
+
+async function saveORSettings() {
+  const allowedRaw = document.getElementById('settings-or-allowed').value;
+  const allowed = allowedRaw ? allowedRaw.split(',').map(s => s.trim()).filter(Boolean) : [];
+  const defaultModel = document.getElementById('settings-or-default').value;
+  const status = document.getElementById('settings-or-status');
+
+  try {
+    const r = await fetch(`${API_URL}/openrouter/settings`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ openrouter_allowed_models: allowed, openrouter_default_model: defaultModel })
+    });
+    if (!r.ok) throw new Error(await r.text());
+    status.textContent = "Saved!";
+    setTimeout(() => status.textContent = "", 3000);
+  } catch (e) {
+    status.textContent = `Error: ${e.message}`;
+    status.style.color = "red";
+  }
+}
+
+async function loadLMSettings() {
+  try {
+    const r = await fetch(`${API_URL}/lmstudio/settings`);
+    if (!r.ok) throw new Error("Failed to load LM Studio settings");
+    const d = await r.json();
+    document.getElementById('settings-lm-allowed').value = d.lmstudio_allowed_models ? d.lmstudio_allowed_models.join(', ') : '';
+    document.getElementById('settings-lm-default').value = d.lmstudio_default_model || '';
+  } catch (e) {
+    console.error(e);
+  }
+}
+
+async function saveLMSettings() {
+  const allowedRaw = document.getElementById('settings-lm-allowed').value;
+  const allowed = allowedRaw ? allowedRaw.split(',').map(s => s.trim()).filter(Boolean) : [];
+  const defaultModel = document.getElementById('settings-lm-default').value;
+  const status = document.getElementById('settings-lm-status');
+
+  try {
+    const r = await fetch(`${API_URL}/lmstudio/settings`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ lmstudio_allowed_models: allowed, lmstudio_default_model: defaultModel })
+    });
+    if (!r.ok) throw new Error(await r.text());
+    status.textContent = "Saved!";
+    setTimeout(() => status.textContent = "", 3000);
+  } catch (e) {
+    status.textContent = `Error: ${e.message}`;
+    status.style.color = "red";
+  }
 }
 
 async function loadOllamaModels() {
@@ -171,6 +303,9 @@ async function deleteModel(name) {
 refresh();
 loadOllamaModels();
 loadSettings();
+loadGlobalSettings();
+loadORSettings();
+loadLMSettings();
 setInterval(refresh, 2000);
 </script>
 </body>

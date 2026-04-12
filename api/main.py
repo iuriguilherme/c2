@@ -8,6 +8,9 @@ from api.routes.genes import router as genes_router
 from api.routes.neurons import router as neurons_router
 from api.routes.entities import router as entities_router, set_redis_client
 from api.routes.ollama import router as ollama_router
+from api.routes.settings import router as settings_router
+from api.routes.openrouter import router as openrouter_router
+from api.routes.lmstudio import router as lmstudio_router
 
 logger = logging.getLogger(__name__)
 redis_client = None
@@ -69,6 +72,9 @@ app.include_router(genes_router)
 app.include_router(neurons_router)
 app.include_router(entities_router)
 app.include_router(ollama_router)
+app.include_router(settings_router)
+app.include_router(openrouter_router)
+app.include_router(lmstudio_router)
 
 
 @app.get("/health")
