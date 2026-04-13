@@ -17,6 +17,12 @@ class SettingsModel(BaseModel):
     lmstudio_allowed_models: Optional[dict[str, list[str]]] = None
     lmstudio_default_model: Optional[dict[str, str]] = None
 
+LMSTUDIO_SETTINGS_KEYS = (
+    "lmstudio_available_models",
+    "lmstudio_allowed_models",
+    "lmstudio_default_model",
+)
+
 def get_settings_data() -> dict:
     for path in (SETTINGS_FILE, SETTINGS_EXAMPLE_FILE):
         if os.path.exists(path):
@@ -26,6 +32,10 @@ def get_settings_data() -> dict:
             except Exception:
                 pass
     return {}
+
+def get_lmstudio_settings_data() -> dict:
+    settings = get_settings_data()
+    return {key: settings[key] for key in LMSTUDIO_SETTINGS_KEYS if key in settings}
 
 def get_base_url() -> str:
     settings = get_settings_data()
@@ -50,7 +60,7 @@ async def list_models():
 @router.get("/settings")
 def get_settings():
     """Get simulation settings for LM Studio."""
-    return get_settings_data()
+    return get_lmstudio_settings_data()
 
 @router.post("/settings")
 def update_settings(settings: SettingsModel):
