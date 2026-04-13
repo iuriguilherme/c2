@@ -32,6 +32,9 @@
     color: red;
     cursor: pointer;
     font-weight: bold;
+    background: transparent;
+    border: none;
+    padding: 0;
   }
   select { background: #1a1a1a; color: #0f0; border: 1px solid #333; padding: 4px 8px; font-family: monospace; }
 </style>
@@ -156,9 +159,11 @@ function renderModelList(provider) {
     textSpan.onclick = () => toggleAllowed(provider, model);
     el.appendChild(textSpan);
 
-    const removeBtn = document.createElement('span');
+    const removeBtn = document.createElement('button');
+    removeBtn.type = 'button';
     removeBtn.className = 'remove-btn';
     removeBtn.textContent = 'x';
+    removeBtn.setAttribute('aria-label', `Remove model ${model}`);
     removeBtn.onclick = (e) => {
       e.stopPropagation();
       removeAvailableModel(provider, model);
