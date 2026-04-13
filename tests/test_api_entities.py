@@ -1,8 +1,12 @@
 """Tests for the /entities/archived/{entity_id} endpoint and AnthropicProvider models."""
 
-import fakeredis.aioredis
 import httpx
 import pytest
+
+try:
+    import fakeredis.aioredis
+except ImportError:
+    pytest.skip("fakeredis not available", allow_module_level=True)
 
 from api.main import app
 from api.routes.entities import get_redis

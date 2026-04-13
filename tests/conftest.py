@@ -9,7 +9,11 @@ sys.path.insert(0, str(project_root))
 
 import random
 import pytest
-import fakeredis
+try:
+    import fakeredis.aioredis
+    HAS_FAKEREDIS = True
+except ImportError:
+    HAS_FAKEREDIS = False
 
 from genetics.gene_pool import GenePool
 from genetics.models import GeneType, GeneInstance, Genome
@@ -18,7 +22,9 @@ from genetics.models import GeneType, GeneInstance, Genome
 @pytest.fixture
 async def redis():
     """Provide a fake Redis instance for testing."""
-    r = fakeredis.FakeAsyncRedis()
+    if not HAS_FAKEREDIS:
+        pytest.skip("fakeredis not available")
+    r = fakeredis.aioredis.FakeRedis()
     yield r
     await r.aclose()
 

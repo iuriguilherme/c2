@@ -4,6 +4,7 @@ import respx
 
 from agents.output import AgentOutput, AgentAction
 from agents.providers.ollama import OllamaProvider
+from agents.providers.lmstudio import LMStudioProvider
 from agents.providers.openrouter import OpenRouterProvider
 
 
@@ -177,6 +178,65 @@ async def test_ollama_generate_streams_content():
         chunks = []
         async for chunk in provider.generate(
             model="llama3.2",
+            system_prompt="You are an entity.",
+            user_prompt="What do you do?",
+            manifest_json="{}",
+        ):
+            chunks.append(chunk)
+    assert "".join(chunks) == "Hello world"
+
+
+# ── LM Studio provider ───────────────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_lmstudio_check_available_true():
+    with respx.mock:
+        respx.get("http://localhost:1234/v1/models").mock(
+            return_value=httpx.Response(200, json={"data": [{"id": "llama3"}]})
+        )
+        provider = LMStudioProvider(base_url="http://localhost:1234")
+        assert await provider.check_available() is True
+
+
+@pytest.mark.asyncio
+async def test_lmstudio_check_available_false():
+    with respx.mock:
+        respx.get("http://localhost:1234/v1/models").mock(
+            return_value=httpx.Response(500)
+        )
+        provider = LMStudioProvider(base_url="http://localhost:1234")
+        assert await provider.check_available() is False
+
+
+@pytest.mark.asyncio
+async def test_lmstudio_available_models():
+    with respx.mock:
+        respx.get("http://localhost:1234/v1/models").mock(
+            return_value=httpx.Response(
+                200, json={"data": [{"id": "llama3"}, {"id": "mistral"}]}
+            )
+        )
+        provider = LMStudioProvider(base_url="http://localhost:1234")
+        models = await provider.get_available_models()
+        assert "llama3" in models
+        assert "mistral" in models
+
+
+@pytest.mark.asyncio
+async def test_lmstudio_generate_streams_content():
+    lines = (
+        b'data: {"choices": [{"delta": {"content": "Hello"}}]}\n'
+        b'data: {"choices": [{"delta": {"content": " world"}}]}\n'
+        b'data: [DONE]\n'
+    )
+    with respx.mock:
+        respx.post("http://localhost:1234/v1/chat/completions").mock(
+            return_value=httpx.Response(200, content=lines)
+        )
+        provider = LMStudioProvider(base_url="http://localhost:1234")
+        chunks = []
+        async for chunk in provider.generate(
+            model="llama3",
             system_prompt="You are an entity.",
             user_prompt="What do you do?",
             manifest_json="{}",

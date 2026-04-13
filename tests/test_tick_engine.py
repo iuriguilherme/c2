@@ -6,7 +6,10 @@ import random
 import pytest
 from unittest.mock import MagicMock, AsyncMock, patch
 
-import fakeredis.aioredis
+try:
+    import fakeredis.aioredis
+except ImportError:
+    pytest.skip("fakeredis not available", allow_module_level=True)
 
 from genetics import GenePool
 from genetics.models import GeneType, GeneInstance
