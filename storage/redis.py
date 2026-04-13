@@ -31,7 +31,7 @@ class RedisEntityRepository:
     async def load_many(self, entity_ids: list[str]) -> list[dict]:
         if not entity_ids:
             return []
-        pipe = self._r.pipeline()
+        pipe = self._r.pipeline(transaction=False)
         for eid in entity_ids:
             pipe.hgetall(f"{self._KEY_PREFIX}:{eid}")
         results = await pipe.execute()
