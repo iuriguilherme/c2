@@ -10,9 +10,12 @@ _ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__
 SETTINGS_FILE = os.path.join(_ROOT, "settings.json")
 SETTINGS_EXAMPLE_FILE = os.path.join(_ROOT, "settings.example.json")
 
+from typing import Optional
+
 class SettingsModel(BaseModel):
-    ollama_allowed_models: list[str]
-    ollama_default_model: str
+    ollama_available_models: Optional[dict[str, list[str]]] = None
+    ollama_allowed_models: Optional[dict[str, list[str]]] = None
+    ollama_default_model: Optional[dict[str, str]] = None
 
 class PullModelRequest(BaseModel):
     model: str
@@ -104,8 +107,14 @@ def get_settings():
 def update_settings(settings: SettingsModel):
     """Update simulation settings for Ollama."""
     current = get_settings_data()
-    # We update current config with what is allowed from SettingsModel
-    current.update(settings.model_dump())
+    dumped = settings.model_dump(exclude_unset=True)
+
+    for key, value in dumped.items():
+        if isinstance(value, dict) and key in current and isinstance(current[key], dict):
+            current[key].update(value)
+        else:
+            current[key] = value
+
     try:
         with open(SETTINGS_FILE, "w") as f:
             json.dump(current, f, indent=2)

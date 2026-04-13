@@ -15,6 +15,25 @@
   .section { margin-top: 40px; border-top: 1px solid #333; padding-top: 20px; }
   input, button { background: #1a1a1a; color: #0f0; border: 1px solid #333; padding: 4px 8px; font-family: monospace; }
   button:hover { background: #333; cursor: pointer; }
+  .model-list-item {
+    display: inline-block;
+    padding: 4px 8px;
+    margin: 4px;
+    border: 1px solid #333;
+    cursor: pointer;
+    background: #111;
+  }
+  .model-list-item.allowed {
+    background: #040;
+    border-color: #0f0;
+  }
+  .model-list-item .remove-btn {
+    margin-left: 8px;
+    color: red;
+    cursor: pointer;
+    font-weight: bold;
+  }
+  select { background: #1a1a1a; color: #0f0; border: 1px solid #333; padding: 4px 8px; font-family: monospace; }
 </style>
 </head>
 <body>
@@ -58,11 +77,17 @@
   </div>
 
   <div>
-    <strong>Simulation Settings</strong><br>
-    <label>Allowed Models (comma separated, empty for none):</label><br>
-    <input type="text" id="settings-allowed" style="width: 300px;"><br><br>
+    <strong>Simulation Settings (Text Models)</strong><br>
+
+    <label>Available Models:</label>
+    <div id="ollama-available-list" style="margin-bottom: 10px;"></div>
+
+    <input type="text" id="ollama-add-available" placeholder="e.g. llama3.2">
+    <button onclick="addAvailableModel('ollama')">Add Available Model</button><br><br>
+
     <label>Default Fallback Model:</label><br>
-    <input type="text" id="settings-default" style="width: 300px;"><br><br>
+    <select id="ollama-default-select" style="width: 300px;"></select><br><br>
+
     <button onclick="saveSettings()">Save Settings</button>
     <span id="settings-status" style="margin-left: 10px; color: #aaa;"></span>
   </div>
@@ -71,10 +96,17 @@
 <div class="section">
   <h2>OpenRouter Settings</h2>
   <div>
-    <label>Allowed Models (comma separated, empty for none):</label><br>
-    <input type="text" id="settings-or-allowed" style="width: 400px;"><br><br>
+    <strong>Simulation Settings (Text Models)</strong><br>
+
+    <label>Available Models:</label>
+    <div id="openrouter-available-list" style="margin-bottom: 10px;"></div>
+
+    <input type="text" id="openrouter-add-available" placeholder="e.g. openai/gpt-4o-mini">
+    <button onclick="addAvailableModel('openrouter')">Add Available Model</button><br><br>
+
     <label>Default Fallback Model:</label><br>
-    <input type="text" id="settings-or-default" style="width: 400px;"><br><br>
+    <select id="openrouter-default-select" style="width: 400px;"></select><br><br>
+
     <button onclick="saveORSettings()">Save OpenRouter Settings</button>
     <span id="settings-or-status" style="margin-left: 10px; color: #aaa;"></span>
   </div>
@@ -83,10 +115,17 @@
 <div class="section">
   <h2>LM Studio Settings</h2>
   <div>
-    <label>Allowed Models (comma separated, empty for none):</label><br>
-    <input type="text" id="settings-lm-allowed" style="width: 400px;"><br><br>
+    <strong>Simulation Settings (Text Models)</strong><br>
+
+    <label>Available Models:</label>
+    <div id="lmstudio-available-list" style="margin-bottom: 10px;"></div>
+
+    <input type="text" id="lmstudio-add-available" placeholder="e.g. llama-3">
+    <button onclick="addAvailableModel('lmstudio')">Add Available Model</button><br><br>
+
     <label>Default Fallback Model:</label><br>
-    <input type="text" id="settings-lm-default" style="width: 400px;"><br><br>
+    <select id="lmstudio-default-select" style="width: 400px;"></select><br><br>
+
     <button onclick="saveLMSettings()">Save LM Studio Settings</button>
     <span id="settings-lm-status" style="margin-left: 10px; color: #aaa;"></span>
   </div>
@@ -96,6 +135,107 @@
 const API_URL = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1"
     ? "http://localhost:8000"
     : window.location.origin.replace("5000", "8000");
+
+// Store local state for UI
+const state = {
+  ollama: { available: [], allowed: [], default: "" },
+  openrouter: { available: [], allowed: [], default: "" },
+  lmstudio: { available: [], allowed: [], default: "" }
+};
+
+function renderModelList(provider) {
+  const container = document.getElementById(`${provider}-available-list`);
+  container.innerHTML = '';
+
+  state[provider].available.forEach(model => {
+    const el = document.createElement('div');
+    el.className = 'model-list-item ' + (state[provider].allowed.includes(model) ? 'allowed' : '');
+
+    const textSpan = document.createElement('span');
+    textSpan.textContent = model;
+    textSpan.onclick = () => toggleAllowed(provider, model);
+    el.appendChild(textSpan);
+
+    const removeBtn = document.createElement('span');
+    removeBtn.className = 'remove-btn';
+    removeBtn.textContent = 'x';
+    removeBtn.onclick = (e) => {
+      e.stopPropagation();
+      removeAvailableModel(provider, model);
+    };
+    el.appendChild(removeBtn);
+
+    container.appendChild(el);
+  });
+
+  updateDefaultDropdown(provider);
+}
+
+function updateDefaultDropdown(provider) {
+  const select = document.getElementById(`${provider}-default-select`);
+  select.innerHTML = '';
+
+  const allowed = state[provider].allowed;
+  if (allowed.length === 0) {
+    const opt = document.createElement('option');
+    opt.value = "";
+    opt.textContent = "No allowed models";
+    select.appendChild(opt);
+  } else {
+    allowed.forEach(model => {
+      const opt = document.createElement('option');
+      opt.value = model;
+      opt.textContent = model;
+      if (state[provider].default === model) {
+        opt.selected = true;
+      }
+      select.appendChild(opt);
+    });
+  }
+}
+
+function toggleAllowed(provider, model) {
+  const idx = state[provider].allowed.indexOf(model);
+  if (idx > -1) {
+    state[provider].allowed.splice(idx, 1);
+  } else {
+    state[provider].allowed.push(model);
+  }
+
+  // If default is no longer allowed, clear it
+  if (state[provider].default === model && idx > -1) {
+      if(state[provider].allowed.length > 0) {
+          state[provider].default = state[provider].allowed[0];
+      } else {
+          state[provider].default = "";
+      }
+  }
+
+  renderModelList(provider);
+}
+
+function addAvailableModel(provider) {
+  const input = document.getElementById(`${provider}-add-available`);
+  const model = input.value.trim();
+  if (model && !state[provider].available.includes(model)) {
+    state[provider].available.push(model);
+    input.value = '';
+    renderModelList(provider);
+  }
+}
+
+function removeAvailableModel(provider, model) {
+  state[provider].available = state[provider].available.filter(m => m !== model);
+  state[provider].allowed = state[provider].allowed.filter(m => m !== model);
+  if (state[provider].default === model) {
+      if(state[provider].allowed.length > 0) {
+          state[provider].default = state[provider].allowed[0];
+      } else {
+          state[provider].default = "";
+      }
+  }
+  renderModelList(provider);
+}
 
 async function refresh() {
   const r = await fetch('/api/state');
@@ -107,7 +247,6 @@ async function refresh() {
     `<tr><td>${e.id}</td><td>${e.age}</td><td>${parseFloat(e.position_x).toFixed(1)}</td><td>${parseFloat(e.position_y).toFixed(1)}</td><td>${e.provider}</td><td>${e.model}</td></tr>`
   ).join('');
 }
-
 
 async function loadGlobalSettings() {
   try {
@@ -140,29 +279,48 @@ async function saveGlobalSettings() {
   }
 }
 
+function getArrayFromNested(obj, key) {
+    if(!obj) return [];
+    if(Array.isArray(obj)) return obj; // backwards compatible
+    if(obj.text && Array.isArray(obj.text)) return obj.text;
+    return [];
+}
+function getStringFromNested(obj, key) {
+    if(!obj) return "";
+    if(typeof obj === 'string') return obj; // backwards compatible
+    if(obj.text && typeof obj.text === 'string') return obj.text;
+    return "";
+}
+
 async function loadORSettings() {
   try {
     const r = await fetch(`${API_URL}/openrouter/settings`);
     if (!r.ok) throw new Error("Failed to load OpenRouter settings");
     const d = await r.json();
-    document.getElementById('settings-or-allowed').value = d.openrouter_allowed_models ? d.openrouter_allowed_models.join(', ') : '';
-    document.getElementById('settings-or-default').value = d.openrouter_default_model || '';
+
+    state.openrouter.available = getArrayFromNested(d.openrouter_available_models, 'openrouter_available_models');
+    state.openrouter.allowed = getArrayFromNested(d.openrouter_allowed_models, 'openrouter_allowed_models');
+    state.openrouter.default = getStringFromNested(d.openrouter_default_model, 'openrouter_default_model');
+
+    renderModelList('openrouter');
   } catch (e) {
     console.error(e);
   }
 }
 
 async function saveORSettings() {
-  const allowedRaw = document.getElementById('settings-or-allowed').value;
-  const allowed = allowedRaw ? allowedRaw.split(',').map(s => s.trim()).filter(Boolean) : [];
-  const defaultModel = document.getElementById('settings-or-default').value;
+  const defaultModel = document.getElementById('openrouter-default-select').value || state.openrouter.default;
   const status = document.getElementById('settings-or-status');
 
   try {
     const r = await fetch(`${API_URL}/openrouter/settings`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ openrouter_allowed_models: allowed, openrouter_default_model: defaultModel })
+      body: JSON.stringify({
+        openrouter_available_models: { text: state.openrouter.available },
+        openrouter_allowed_models: { text: state.openrouter.allowed },
+        openrouter_default_model: { text: defaultModel }
+      })
     });
     if (!r.ok) throw new Error(await r.text());
     status.textContent = "Saved!";
@@ -178,24 +336,30 @@ async function loadLMSettings() {
     const r = await fetch(`${API_URL}/lmstudio/settings`);
     if (!r.ok) throw new Error("Failed to load LM Studio settings");
     const d = await r.json();
-    document.getElementById('settings-lm-allowed').value = d.lmstudio_allowed_models ? d.lmstudio_allowed_models.join(', ') : '';
-    document.getElementById('settings-lm-default').value = d.lmstudio_default_model || '';
+
+    state.lmstudio.available = getArrayFromNested(d.lmstudio_available_models, 'lmstudio_available_models');
+    state.lmstudio.allowed = getArrayFromNested(d.lmstudio_allowed_models, 'lmstudio_allowed_models');
+    state.lmstudio.default = getStringFromNested(d.lmstudio_default_model, 'lmstudio_default_model');
+
+    renderModelList('lmstudio');
   } catch (e) {
     console.error(e);
   }
 }
 
 async function saveLMSettings() {
-  const allowedRaw = document.getElementById('settings-lm-allowed').value;
-  const allowed = allowedRaw ? allowedRaw.split(',').map(s => s.trim()).filter(Boolean) : [];
-  const defaultModel = document.getElementById('settings-lm-default').value;
+  const defaultModel = document.getElementById('lmstudio-default-select').value || state.lmstudio.default;
   const status = document.getElementById('settings-lm-status');
 
   try {
     const r = await fetch(`${API_URL}/lmstudio/settings`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ lmstudio_allowed_models: allowed, lmstudio_default_model: defaultModel })
+      body: JSON.stringify({
+        lmstudio_available_models: { text: state.lmstudio.available },
+        lmstudio_allowed_models: { text: state.lmstudio.allowed },
+        lmstudio_default_model: { text: defaultModel }
+      })
     });
     if (!r.ok) throw new Error(await r.text());
     status.textContent = "Saved!";
@@ -230,24 +394,30 @@ async function loadSettings() {
     const r = await fetch(`${API_URL}/ollama/settings`);
     if (!r.ok) throw new Error("Failed to load settings");
     const d = await r.json();
-    document.getElementById('settings-allowed').value = d.ollama_allowed_models ? d.ollama_allowed_models.join(', ') : '';
-    document.getElementById('settings-default').value = d.ollama_default_model || '';
+
+    state.ollama.available = getArrayFromNested(d.ollama_available_models, 'ollama_available_models');
+    state.ollama.allowed = getArrayFromNested(d.ollama_allowed_models, 'ollama_allowed_models');
+    state.ollama.default = getStringFromNested(d.ollama_default_model, 'ollama_default_model');
+
+    renderModelList('ollama');
   } catch (e) {
     console.error(e);
   }
 }
 
 async function saveSettings() {
-  const allowedRaw = document.getElementById('settings-allowed').value;
-  const allowed = allowedRaw ? allowedRaw.split(',').map(s => s.trim()).filter(Boolean) : [];
-  const defaultModel = document.getElementById('settings-default').value;
+  const defaultModel = document.getElementById('ollama-default-select').value || state.ollama.default;
   const status = document.getElementById('settings-status');
 
   try {
     const r = await fetch(`${API_URL}/ollama/settings`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ollama_allowed_models: allowed, ollama_default_model: defaultModel })
+      body: JSON.stringify({
+        ollama_available_models: { text: state.ollama.available },
+        ollama_allowed_models: { text: state.ollama.allowed },
+        ollama_default_model: { text: defaultModel }
+      })
     });
     if (!r.ok) throw new Error(await r.text());
     status.textContent = "Saved!";

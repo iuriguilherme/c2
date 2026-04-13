@@ -42,12 +42,15 @@ class OllamaProvider:
                     with open(path, "r") as f:
                         settings = json.load(f)
                     if "ollama_allowed_models" in settings:
-                        allowed_models = settings["ollama_allowed_models"]
+                        if isinstance(settings["ollama_allowed_models"], dict):
+                            allowed_models = settings["ollama_allowed_models"].get("text", [])
+                        else:
+                            allowed_models = settings["ollama_allowed_models"]
                 except Exception:
                     pass
                 break
 
-        if allowed_models is None or not allowed_models:
+        if not allowed_models:
             return []
 
         return [m for m in models_on_server if m in allowed_models or m.split(":")[0] in allowed_models]
