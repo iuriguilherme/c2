@@ -20,17 +20,25 @@
     padding: 4px 8px;
     margin: 4px;
     border: 1px solid #333;
-    cursor: pointer;
     background: #111;
   }
   .model-list-item.allowed {
     background: #040;
     border-color: #0f0;
   }
+  .model-list-item .model-toggle-btn,
+  .model-list-item .remove-btn {
+    background: transparent;
+    border: 0;
+    padding: 0;
+    font-family: monospace;
+  }
+  .model-list-item .model-toggle-btn {
+    color: #ccc;
+  }
   .model-list-item .remove-btn {
     margin-left: 8px;
     color: red;
-    cursor: pointer;
     font-weight: bold;
     background: transparent;
     border: none;
@@ -154,10 +162,12 @@ function renderModelList(provider) {
     const el = document.createElement('div');
     el.className = 'model-list-item ' + (state[provider].allowed.includes(model) ? 'allowed' : '');
 
-    const textSpan = document.createElement('span');
-    textSpan.textContent = model;
-    textSpan.onclick = () => toggleAllowed(provider, model);
-    el.appendChild(textSpan);
+    const textButton = document.createElement('button');
+    textButton.type = 'button';
+    textButton.className = 'model-toggle-btn';
+    textButton.textContent = model;
+    textButton.onclick = () => toggleAllowed(provider, model);
+    el.appendChild(textButton);
 
     const removeBtn = document.createElement('button');
     removeBtn.type = 'button';
