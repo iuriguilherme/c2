@@ -31,9 +31,23 @@ async function refresh() {
   document.getElementById('tick').textContent = d.tick;
   document.getElementById('count').textContent = d.entities.length;
   const tbody = document.getElementById('entities');
-  tbody.innerHTML = d.entities.map(e =>
-    `<tr><td>${e.id}</td><td>${e.age}</td><td>${parseFloat(e.position_x).toFixed(1)}</td><td>${parseFloat(e.position_y).toFixed(1)}</td><td>${e.provider}</td><td>${e.model}</td></tr>`
-  ).join('');
+  tbody.innerHTML = '';
+  d.entities.forEach(e => {
+    const tr = document.createElement('tr');
+    [
+      e.id,
+      e.age,
+      parseFloat(e.position_x).toFixed(1),
+      parseFloat(e.position_y).toFixed(1),
+      e.provider,
+      e.model
+    ].forEach(text => {
+      const td = document.createElement('td');
+      td.textContent = text;
+      tr.appendChild(td);
+    });
+    tbody.appendChild(tr);
+  });
 }
 refresh();
 setInterval(refresh, 2000);
