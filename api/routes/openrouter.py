@@ -27,6 +27,15 @@ def get_settings_data() -> dict:
                 pass
     return {}
 
+def get_openrouter_settings_data() -> dict:
+    settings = get_settings_data()
+    allowed_keys = (
+        "openrouter_available_models",
+        "openrouter_allowed_models",
+        "openrouter_default_model",
+    )
+    return {key: settings[key] for key in allowed_keys if key in settings}
+
 def get_api_key() -> str | None:
     return os.environ.get("OPENROUTER_API_KEY")
 
@@ -53,7 +62,7 @@ async def list_models():
 @router.get("/settings")
 def get_settings():
     """Get simulation settings for OpenRouter."""
-    return get_settings_data()
+    return get_openrouter_settings_data()
 
 @router.post("/settings")
 def update_settings(settings: SettingsModel):
