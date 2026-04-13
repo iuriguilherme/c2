@@ -4,7 +4,7 @@ import random
 from genetics.models import GeneType, Genome
 from agents.output import AgentOutput
 from agents.pool import ModelPool
-from environment.void import VoidEnvironment, Position
+from environment.void import VoidEnvironment
 from neural.pool import NeuronPool
 from neural.brain import Brain
 from simulation.entity import Entity
