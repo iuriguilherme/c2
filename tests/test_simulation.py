@@ -92,6 +92,56 @@ async def test_tick_stream_publish_and_read(redis):
     assert events[-1]["tick"] == "1"
 
 
+@pytest.mark.asyncio
+async def test_load_many_returns_all_saved_entities(redis, pool):
+    repo = RedisEntityRepository(redis)
+    genome = pool.default_genome()
+    base = {
+        "genome": genome.model_dump_json(),
+        "position_x": 1.0, "position_y": 2.0,
+        "age": 0, "alive": True,
+        "system_prompt": "", "user_prompt": "",
+        "model": "m", "provider": "p",
+        "think_interval": 5, "last_think_tick": 0,
+        "cached_action": "", "cached_action_tick": -1,
+    }
+    await repo.save("lm-1", {"id": "lm-1", **base})
+    await repo.save("lm-2", {"id": "lm-2", **base, "position_x": 3.0})
+    result = await repo.load_many(["lm-1", "lm-2"])
+    assert len(result) == 2
+    ids = {e["id"] for e in result}
+    assert ids == {"lm-1", "lm-2"}
+    for e in result:
+        assert e["age"] == "0"
+        assert e["alive"] == "True"
+
+
+@pytest.mark.asyncio
+async def test_load_many_omits_missing_entity_ids(redis, pool):
+    repo = RedisEntityRepository(redis)
+    genome = pool.default_genome()
+    base = {
+        "genome": genome.model_dump_json(),
+        "position_x": 0.0, "position_y": 0.0,
+        "age": 0, "alive": True,
+        "system_prompt": "", "user_prompt": "",
+        "model": "m", "provider": "p",
+        "think_interval": 5, "last_think_tick": 0,
+        "cached_action": "", "cached_action_tick": -1,
+    }
+    await repo.save("lm-real", {"id": "lm-real", **base})
+    result = await repo.load_many(["lm-real", "lm-ghost"])
+    assert len(result) == 1
+    assert result[0]["id"] == "lm-real"
+
+
+@pytest.mark.asyncio
+async def test_load_many_empty_list_returns_empty(redis):
+    repo = RedisEntityRepository(redis)
+    result = await repo.load_many([])
+    assert result == []
+
+
 # ── Void Environment ─────────────────────────────────────────────────────────
 
 from environment.void import VoidEnvironment, Position

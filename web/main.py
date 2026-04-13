@@ -53,19 +53,19 @@ async def state():
     repo = RedisEntityRepository(_redis)
     stream = RedisTickStream(_redis)
     living_ids = await repo.list_living()
-    entities = []
-    for eid in living_ids:
-        data = await repo.load(eid)
-        if data:
-            entities.append({
-                "id": data["id"],
-                "age": data.get("age", "0"),
-                "position_x": data.get("position_x", "0"),
-                "position_y": data.get("position_y", "0"),
-                "model": data.get("model", ""),
-                "provider": data.get("provider", ""),
-                "alive": data.get("alive", "True"),
-            })
+    raw_entities = await repo.load_many(living_ids)
+    entities = [
+        {
+            "id": data["id"],
+            "age": data.get("age", "0"),
+            "position_x": data.get("position_x", "0"),
+            "position_y": data.get("position_y", "0"),
+            "model": data.get("model", ""),
+            "provider": data.get("provider", ""),
+            "alive": data.get("alive", "True"),
+        }
+        for data in raw_entities
+    ]
     recent_ticks = await stream.read_recent(count=5)
     current_tick = int(recent_ticks[-1]["tick"]) if recent_ticks else 0
     return jsonify({"tick": current_tick, "entities": entities})

@@ -28,6 +28,19 @@ class RedisEntityRepository:
         members = await self._r.smembers(self._LIVING_SET)
         return [m.decode() for m in members]
 
+    async def load_many(self, entity_ids: list[str]) -> list[dict]:
+        if not entity_ids:
+            return []
+        pipe = self._r.pipeline(transaction=False)
+        for eid in entity_ids:
+            pipe.hgetall(f"{self._KEY_PREFIX}:{eid}")
+        results = await pipe.execute()
+        entities = []
+        for res in results:
+            if res:
+                entities.append({k.decode(): v.decode() for k, v in res.items()})
+        return entities
+
     async def archive(self, entity_id: str) -> None:
         data = await self.load(entity_id)
         if data:
