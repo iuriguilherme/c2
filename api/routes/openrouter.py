@@ -10,9 +10,12 @@ _ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__
 SETTINGS_FILE = os.path.join(_ROOT, "settings.json")
 SETTINGS_EXAMPLE_FILE = os.path.join(_ROOT, "settings.example.json")
 
+from typing import Optional
+
 class SettingsModel(BaseModel):
-    openrouter_allowed_models: list[str]
-    openrouter_default_model: str
+    openrouter_available_models: Optional[dict[str, list[str]]] = None
+    openrouter_allowed_models: Optional[dict[str, list[str]]] = None
+    openrouter_default_model: Optional[dict[str, str]] = None
 
 def get_settings_data() -> dict:
     for path in (SETTINGS_FILE, SETTINGS_EXAMPLE_FILE):
@@ -23,6 +26,15 @@ def get_settings_data() -> dict:
             except Exception:
                 pass
     return {}
+
+def get_openrouter_settings_data() -> dict:
+    settings = get_settings_data()
+    allowed_keys = (
+        "openrouter_available_models",
+        "openrouter_allowed_models",
+        "openrouter_default_model",
+    )
+    return {key: settings[key] for key in allowed_keys if key in settings}
 
 def get_api_key() -> str | None:
     return os.environ.get("OPENROUTER_API_KEY")
@@ -50,17 +62,20 @@ async def list_models():
 @router.get("/settings")
 def get_settings():
     """Get simulation settings for OpenRouter."""
-    settings = get_settings_data()
-    return {
-        "openrouter_allowed_models": settings.get("openrouter_allowed_models", []),
-        "openrouter_default_model": settings.get("openrouter_default_model", "")
-    }
+    return get_openrouter_settings_data()
 
 @router.post("/settings")
 def update_settings(settings: SettingsModel):
     """Update simulation settings for OpenRouter."""
     current = get_settings_data()
-    current.update(settings.model_dump())
+    dumped = settings.model_dump(exclude_unset=True)
+
+    for key, value in dumped.items():
+        if isinstance(value, dict) and key in current and isinstance(current[key], dict):
+            current[key].update(value)
+        else:
+            current[key] = value
+
     try:
         with open(SETTINGS_FILE, "w") as f:
             json.dump(current, f, indent=2)

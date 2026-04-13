@@ -10,9 +10,18 @@ _ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__
 SETTINGS_FILE = os.path.join(_ROOT, "settings.json")
 SETTINGS_EXAMPLE_FILE = os.path.join(_ROOT, "settings.example.json")
 
+from typing import Optional
+
 class SettingsModel(BaseModel):
-    lmstudio_allowed_models: list[str]
-    lmstudio_default_model: str
+    lmstudio_available_models: Optional[dict[str, list[str]]] = None
+    lmstudio_allowed_models: Optional[dict[str, list[str]]] = None
+    lmstudio_default_model: Optional[dict[str, str]] = None
+
+LMSTUDIO_SETTINGS_KEYS = (
+    "lmstudio_available_models",
+    "lmstudio_allowed_models",
+    "lmstudio_default_model",
+)
 
 def get_settings_data() -> dict:
     for path in (SETTINGS_FILE, SETTINGS_EXAMPLE_FILE):
@@ -23,6 +32,10 @@ def get_settings_data() -> dict:
             except Exception:
                 pass
     return {}
+
+def get_lmstudio_settings_data() -> dict:
+    settings = get_settings_data()
+    return {key: settings[key] for key in LMSTUDIO_SETTINGS_KEYS if key in settings}
 
 def get_base_url() -> str:
     settings = get_settings_data()
@@ -47,17 +60,20 @@ async def list_models():
 @router.get("/settings")
 def get_settings():
     """Get simulation settings for LM Studio."""
-    settings = get_settings_data()
-    return {
-        "lmstudio_allowed_models": settings.get("lmstudio_allowed_models", []),
-        "lmstudio_default_model": settings.get("lmstudio_default_model", "")
-    }
+    return get_lmstudio_settings_data()
 
 @router.post("/settings")
 def update_settings(settings: SettingsModel):
     """Update simulation settings for LM Studio."""
     current = get_settings_data()
-    current.update(settings.model_dump())
+    dumped = settings.model_dump(exclude_unset=True)
+
+    for key, value in dumped.items():
+        if isinstance(value, dict) and key in current and isinstance(current[key], dict):
+            current[key].update(value)
+        else:
+            current[key] = value
+
     try:
         with open(SETTINGS_FILE, "w") as f:
             json.dump(current, f, indent=2)

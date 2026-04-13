@@ -86,21 +86,24 @@ async def main() -> None:
         fallback_added = False
         for provider_name in allowed_providers:
             if provider_name == "ollama":
-                default_model = settings.get("ollama_default_model", "llama3.2")
+                default_model = settings.get("ollama_default_model", {})
+                default_model = default_model.get("text", "llama3.2") if isinstance(default_model, dict) else default_model
                 logger.warning(f"No models available — using Ollama with {default_model} as fallback")
                 p = next(p for p in all_providers if p.name == "ollama")
                 model_pool._pool.append((p, default_model))
                 fallback_added = True
                 break
             elif provider_name == "openrouter":
-                default_model = settings.get("openrouter_default_model", "openai/gpt-4o-mini")
+                default_model = settings.get("openrouter_default_model", {})
+                default_model = default_model.get("text", "openai/gpt-4o-mini") if isinstance(default_model, dict) else default_model
                 logger.warning(f"No models available — using OpenRouter with {default_model} as fallback")
                 p = next(p for p in all_providers if p.name == "openrouter")
                 model_pool._pool.append((p, default_model))
                 fallback_added = True
                 break
             elif provider_name == "lmstudio":
-                default_model = settings.get("lmstudio_default_model", "llama-3")
+                default_model = settings.get("lmstudio_default_model", {})
+                default_model = default_model.get("text", "llama-3") if isinstance(default_model, dict) else default_model
                 logger.warning(f"No models available — using LM Studio with {default_model} as fallback")
                 p = next(p for p in all_providers if p.name == "lmstudio")
                 model_pool._pool.append((p, default_model))

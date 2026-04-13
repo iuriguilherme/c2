@@ -38,12 +38,15 @@ class OpenRouterProvider:
                     with open(path, "r") as f:
                         settings = json.load(f)
                     if "openrouter_allowed_models" in settings:
-                        allowed_models = settings["openrouter_allowed_models"]
+                        if isinstance(settings["openrouter_allowed_models"], dict):
+                            allowed_models = settings["openrouter_allowed_models"].get("text", [])
+                        else:
+                            allowed_models = settings["openrouter_allowed_models"]
                 except Exception:
                     pass
                 break
 
-        if allowed_models is None or not allowed_models:
+        if not allowed_models:
             return []
 
         return [m for m in models_on_server if m in allowed_models]

@@ -1,8 +1,15 @@
 {
-  "ollama_allowed_models": [],
-  "ollama_default_model": "llama3.2",
+  "ollama_available_models": { "text": [] },
+  "ollama_allowed_models": { "text": [] },
+  "ollama_default_model": { "text": "llama3.2" },
   "ollama_base_url": "http://localhost:11434",
+  "lmstudio_available_models": { "text": [] },
+  "lmstudio_allowed_models": { "text": [] },
+  "lmstudio_default_model": { "text": "" },
   "lmstudio_base_url": "http://localhost:1234",
+  "openrouter_available_models": { "text": [] },
+  "openrouter_allowed_models": { "text": [] },
+  "openrouter_default_model": { "text": "" },
   "redis_url": "redis://localhost:6379",
   "api_base_url": "http://localhost:8000",
   "void_width": 1000.0,
@@ -14,9 +21,5 @@
     "openrouter",
     "lmstudio",
     "anthropic"
-  ],
-  "openrouter_allowed_models": [],
-  "openrouter_default_model": "",
-  "lmstudio_allowed_models": [],
-  "lmstudio_default_model": ""
+  ]
 }
