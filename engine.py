@@ -26,6 +26,7 @@ from agents.pool import ModelPool
 from agents.providers.ollama import OllamaProvider
 from agents.providers.openrouter import OpenRouterProvider
 from agents.providers.anthropic import AnthropicProvider
+from agents.providers.lmstudio import LMStudioProvider
 from environment.void import VoidEnvironment, Position
 from simulation.factory import EntityFactory
 from simulation.reproduction import ReproductionHandler
@@ -38,11 +39,30 @@ logger = logging.getLogger(__name__)
 
 
 async def main() -> None:
-    redis_url = os.environ.get("REDIS_URL", "redis://localhost:6379")
-    void_w = float(os.environ.get("VOID_WIDTH", "1000.0"))
-    void_h = float(os.environ.get("VOID_HEIGHT", "1000.0"))
-    n_entities = int(os.environ.get("INITIAL_ENTITIES", "5"))
-    tick_interval = float(os.environ.get("TICK_INTERVAL_SEC", "2.0"))
+    import json
+    _root = os.path.dirname(os.path.abspath(__file__))
+    settings = {}
+    for settings_path in (
+        os.path.join(_root, "settings.json"),
+        os.path.join(_root, "settings.example.json"),
+    ):
+        if os.path.exists(settings_path):
+            try:
+                with open(settings_path, "r") as f:
+                    settings = json.load(f)
+                break
+            except Exception as e:
+                logger.error(f"Failed to read {settings_path}: {e}")
+
+    # Fallback order: os.environ overrides -> settings.json -> hardcoded defaults
+    redis_url = os.environ.get("REDIS_URL", settings.get("redis_url", "redis://localhost:6379"))
+    void_w = float(os.environ.get("VOID_WIDTH", settings.get("void_width", 1000.0)))
+    void_h = float(os.environ.get("VOID_HEIGHT", settings.get("void_height", 1000.0)))
+    n_entities = int(os.environ.get("INITIAL_ENTITIES", settings.get("initial_entities", 5)))
+    tick_interval = float(os.environ.get("TICK_INTERVAL_SEC", settings.get("tick_interval_sec", 2.0)))
+    ollama_base_url = os.environ.get("OLLAMA_BASE_URL", settings.get("ollama_base_url", "http://localhost:11434"))
+    lmstudio_base_url = os.environ.get("LMSTUDIO_BASE_URL", settings.get("lmstudio_base_url", "http://localhost:1234"))
+    allowed_providers = settings.get("allowed_providers", ["ollama", "openrouter", "lmstudio", "anthropic"])
 
     redis = aioredis.from_url(redis_url, decode_responses=False)
     repo = RedisEntityRepository(redis)
@@ -52,17 +72,48 @@ async def main() -> None:
     gene_pool = GenePool.load()
     neuron_pool = NeuronPool.load()
 
-    providers = [
-        OllamaProvider(base_url=os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434")),
+    all_providers = [
+        OllamaProvider(base_url=ollama_base_url),
         OpenRouterProvider(),
+        LMStudioProvider(base_url=lmstudio_base_url),
         AnthropicProvider(),
     ]
+    providers = [p for p in all_providers if p.name in allowed_providers]
     model_pool = ModelPool()
     await model_pool.discover(providers)
 
     if model_pool.size == 0:
-        logger.warning("No models available — using Ollama with llama3.2 as fallback")
-        model_pool._pool = [(providers[0], "llama3.2")]
+        fallback_added = False
+        for provider_name in allowed_providers:
+            if provider_name == "ollama":
+                default_model = settings.get("ollama_default_model", {})
+                default_model = default_model.get("text", "llama3.2") if isinstance(default_model, dict) else default_model
+                logger.warning(f"No models available — using Ollama with {default_model} as fallback")
+                p = next(p for p in all_providers if p.name == "ollama")
+                model_pool._pool.append((p, default_model))
+                fallback_added = True
+                break
+            elif provider_name == "openrouter":
+                default_model = settings.get("openrouter_default_model", {})
+                default_model = default_model.get("text", "openai/gpt-4o-mini") if isinstance(default_model, dict) else default_model
+                logger.warning(f"No models available — using OpenRouter with {default_model} as fallback")
+                p = next(p for p in all_providers if p.name == "openrouter")
+                model_pool._pool.append((p, default_model))
+                fallback_added = True
+                break
+            elif provider_name == "lmstudio":
+                default_model = settings.get("lmstudio_default_model", {})
+                default_model = default_model.get("text", "llama-3") if isinstance(default_model, dict) else default_model
+                logger.warning(f"No models available — using LM Studio with {default_model} as fallback")
+                p = next(p for p in all_providers if p.name == "lmstudio")
+                model_pool._pool.append((p, default_model))
+                fallback_added = True
+                break
+
+        if not fallback_added:
+            logger.warning("No models available and no viable fallback found — using Ollama with llama3.2")
+            p = next(p for p in all_providers if p.name == "ollama")
+            model_pool._pool.append((p, "llama3.2"))
 
     factory = EntityFactory(gene_pool=gene_pool, neuron_pool=neuron_pool)
     reproduction_handler = ReproductionHandler(

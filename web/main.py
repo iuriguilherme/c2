@@ -10,10 +10,29 @@ _redis: aioredis.Redis | None = None
 @app.before_serving
 async def startup() -> None:
     global _redis
-    _redis = aioredis.from_url(
-        os.environ.get("REDIS_URL", "redis://localhost:6379"),
-        decode_responses=False,
-    )
+
+    redis_url = "redis://localhost:6379"
+    import json
+    _root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    for settings_path in (
+        os.path.join(_root, "settings.json"),
+        os.path.join(_root, "settings.example.json"),
+    ):
+        if os.path.exists(settings_path):
+            try:
+                with open(settings_path, "r") as f:
+                    settings = json.load(f)
+                    redis_url = settings.get("redis_url", redis_url)
+                break
+            except Exception:
+                app.logger.exception(
+                    "Failed to load Redis settings from %s; falling back to defaults",
+                    settings_path,
+                )
+
+    redis_url = os.environ.get("REDIS_URL", redis_url)
+
+    _redis = aioredis.from_url(redis_url, decode_responses=False)
 
 
 @app.after_serving
@@ -34,19 +53,19 @@ async def state():
     repo = RedisEntityRepository(_redis)
     stream = RedisTickStream(_redis)
     living_ids = await repo.list_living()
-    entities = []
-    for eid in living_ids:
-        data = await repo.load(eid)
-        if data:
-            entities.append({
-                "id": data["id"],
-                "age": data.get("age", "0"),
-                "position_x": data.get("position_x", "0"),
-                "position_y": data.get("position_y", "0"),
-                "model": data.get("model", ""),
-                "provider": data.get("provider", ""),
-                "alive": data.get("alive", "True"),
-            })
+    raw_entities = await repo.load_many(living_ids)
+    entities = [
+        {
+            "id": data["id"],
+            "age": data.get("age", "0"),
+            "position_x": data.get("position_x", "0"),
+            "position_y": data.get("position_y", "0"),
+            "model": data.get("model", ""),
+            "provider": data.get("provider", ""),
+            "alive": data.get("alive", "True"),
+        }
+        for data in raw_entities
+    ]
     recent_ticks = await stream.read_recent(count=5)
     current_tick = int(recent_ticks[-1]["tick"]) if recent_ticks else 0
     return jsonify({"tick": current_tick, "entities": entities})

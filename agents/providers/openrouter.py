@@ -1,7 +1,6 @@
 import os
 from typing import AsyncGenerator
 from openai import AsyncOpenAI
-from agents.protocol import LLMConnectionError, LLMRateLimitError
 
 
 class OpenRouterProvider:
@@ -25,7 +24,32 @@ class OpenRouterProvider:
 
     async def get_available_models(self) -> list[str]:
         response = await self._client.models.list()
-        return [m.id for m in response.data]
+        models_on_server = [m.id for m in response.data]
+
+        import json
+        import os
+        _root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        settings_path = os.path.join(_root, "settings.json")
+        settings_example_path = os.path.join(_root, "settings.example.json")
+        allowed_models = None
+        for path in (settings_path, settings_example_path):
+            if os.path.exists(path):
+                try:
+                    with open(path, "r") as f:
+                        settings = json.load(f)
+                    if "openrouter_allowed_models" in settings:
+                        if isinstance(settings["openrouter_allowed_models"], dict):
+                            allowed_models = settings["openrouter_allowed_models"].get("text", [])
+                        else:
+                            allowed_models = settings["openrouter_allowed_models"]
+                except Exception:
+                    pass
+                break
+
+        if not allowed_models:
+            return []
+
+        return [m for m in models_on_server if m in allowed_models]
 
     async def generate(
         self,
