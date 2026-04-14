@@ -486,28 +486,13 @@ async function loadOllamaModels() {
     const d = await r.json();
     const models = d.models || [];
     const tbody = document.getElementById('ollama-models');
-    tbody.innerHTML = '';
-
-    models.forEach(m => {
-      const tr = document.createElement('tr');
-
-      const nameTd = document.createElement('td');
-      nameTd.textContent = m.name;
-      tr.appendChild(nameTd);
-
-      const sizeTd = document.createElement('td');
-      sizeTd.textContent = `${(m.size / 1024 / 1024 / 1024).toFixed(2)} GB`;
-      tr.appendChild(sizeTd);
-
-      const actionTd = document.createElement('td');
-      const deleteButton = document.createElement('button');
-      deleteButton.textContent = 'Delete';
-      deleteButton.addEventListener('click', () => deleteModel(m.name));
-      actionTd.appendChild(deleteButton);
-      tr.appendChild(actionTd);
-
-      tbody.appendChild(tr);
-    });
+    tbody.innerHTML = models.map(m =>
+      `<tr>
+        <td>${m.name}</td>
+        <td>${(m.size / 1024 / 1024 / 1024).toFixed(2)} GB</td>
+        <td><button onclick="deleteModel('${m.name}')">Delete</button></td>
+      </tr>`
+    ).join('');
   } catch (e) {
     const tbody = document.getElementById('ollama-models');
     tbody.innerHTML = '';
