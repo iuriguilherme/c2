@@ -1,8 +1,11 @@
 import json
+import logging
 import os
 import httpx
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/ollama", tags=["ollama"])
 
@@ -26,8 +29,15 @@ def get_settings_data() -> dict:
             try:
                 with open(path, "r") as f:
                     return json.load(f)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning(
+                    "Failed to load settings from %s (%s: %s)",
+                    path, type(exc).__name__, exc,
+                )
+    logger.warning(
+        "No settings file found; searched %s and %s",
+        SETTINGS_FILE, SETTINGS_EXAMPLE_FILE,
+    )
     return {}
 
 def get_base_url() -> str:

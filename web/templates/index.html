@@ -45,10 +45,37 @@
     padding: 0;
   }
   select { background: #1a1a1a; color: #0f0; border: 1px solid #333; padding: 4px 8px; font-family: monospace; }
+  #api-status {
+    padding: 8px 12px;
+    margin: 10px 0;
+    border: 1px solid #333;
+    font-size: 0.9rem;
+  }
+  #api-status.connected {
+    background: #041a04;
+    border-color: #0a0;
+    color: #0f0;
+  }
+  #api-status.disconnected {
+    background: #1a0404;
+    border-color: #a00;
+    color: #f44;
+  }
+  #api-status.retrying {
+    background: #1a1a04;
+    border-color: #aa0;
+    color: #ff4;
+  }
+  .error-detail {
+    color: #f44;
+    font-size: 0.85rem;
+    margin-top: 4px;
+  }
 </style>
 </head>
 <body>
 <h1>AGI Entity Simulation</h1>
+<div id="api-status" class="disconnected">⏳ Checking API connection...</div>
 <div>Tick: <span id="tick">—</span></div>
 <div>Entities alive: <span id="count">—</span></div>
 <table>
@@ -147,7 +174,71 @@ const API_URL = window.location.hostname === "localhost" || window.location.host
     ? "http://localhost:8000"
     : window.location.origin.replace("5000", "8000");
 
-// Store local state for UI
+// ── API Connection Status ──────────────────────────────────────────
+let apiConnected = false;
+
+function setApiStatus(status, message) {
+  const el = document.getElementById('api-status');
+  el.className = status; // 'connected', 'disconnected', or 'retrying'
+  el.textContent = message;
+}
+
+function formatApiError(url, err) {
+  if (err instanceof TypeError && err.message === 'Failed to fetch') {
+    return `Cannot reach API at ${url} — is the api service running? Check: docker compose ps`;
+  }
+  if (err.message && err.message.includes('ERR_EMPTY_RESPONSE')) {
+    return `API at ${url} returned empty response — the api service may be starting up or crashed. Check: docker compose logs api`;
+  }
+  return `Request to ${url} failed: ${err.message}`;
+}
+
+async function checkApiHealth() {
+  const url = `${API_URL}/health`;
+  try {
+    const r = await fetch(url, { signal: AbortSignal.timeout(5000) });
+    if (r.ok) {
+      if (!apiConnected) {
+        apiConnected = true;
+        if (retryTimer) { clearTimeout(retryTimer); retryTimer = null; }
+        setApiStatus('connected', `✓ API connected at ${API_URL}`);
+        // Load all settings now that API is available
+        loadAllSettings();
+      }
+      return true;
+    }
+    apiConnected = false;
+    setApiStatus('disconnected', `✗ API responded with HTTP ${r.status} at ${url}`);
+    return false;
+  } catch (e) {
+    apiConnected = false;
+    setApiStatus('disconnected', `✗ ${formatApiError(url, e)}`);
+    return false;
+  }
+}
+
+// ── Retry Logic ────────────────────────────────────────────────────
+const RETRY_DELAYS = [2000, 3000, 5000, 8000, 13000]; // 5 retries with increasing delay
+let retryCount = 0;
+let retryTimer = null;
+
+async function initialConnect() {
+  const ok = await checkApiHealth();
+  if (!ok && retryCount < RETRY_DELAYS.length) {
+    const delay = RETRY_DELAYS[retryCount];
+    retryCount++;
+    setApiStatus('retrying',
+      `⟳ API not reachable at ${API_URL} — retry ${retryCount}/${RETRY_DELAYS.length} in ${delay/1000}s... (is the api service running?)`
+    );
+    retryTimer = setTimeout(initialConnect, delay);
+  } else if (!ok) {
+    setApiStatus('disconnected',
+      `✗ Cannot reach API at ${API_URL} after ${RETRY_DELAYS.length} retries. Check: docker compose logs api`
+    );
+  }
+}
+
+// ── Store local state for UI ───────────────────────────────────────
 const state = {
   ollama: { available: [], allowed: [], default: "" },
   openrouter: { available: [], allowed: [], default: "" },
@@ -252,6 +343,7 @@ function removeAvailableModel(provider, model) {
   renderModelList(provider);
 }
 
+// ── Data Refresh ───────────────────────────────────────────────────
 async function refresh() {
   const r = await fetch('/api/state');
   const d = await r.json();
@@ -277,14 +369,19 @@ async function refresh() {
   });
 }
 
+// ── Settings Loaders ───────────────────────────────────────────────
 async function loadGlobalSettings() {
+  const url = `${API_URL}/settings`;
   try {
-    const r = await fetch(`${API_URL}/settings`);
-    if (!r.ok) throw new Error("Failed to load global settings");
+    const r = await fetch(url);
+    if (!r.ok) throw new Error(`HTTP ${r.status}: ${await r.text()}`);
     const d = await r.json();
     document.getElementById('settings-global-providers').value = d.allowed_providers ? d.allowed_providers.join(', ') : '';
   } catch (e) {
-    console.error(e);
+    console.error(`[loadGlobalSettings] ${formatApiError(url, e)}`);
+    const statusEl = document.getElementById('settings-global-status');
+    statusEl.textContent = formatApiError(url, e);
+    statusEl.style.color = "red";
   }
 }
 
@@ -301,9 +398,10 @@ async function saveGlobalSettings() {
     });
     if (!r.ok) throw new Error(await r.text());
     status.textContent = "Saved!";
+    status.style.color = "#0f0";
     setTimeout(() => status.textContent = "", 3000);
   } catch (e) {
-    status.textContent = `Error: ${e.message}`;
+    status.textContent = formatApiError(`${API_URL}/settings`, e);
     status.style.color = "red";
   }
 }
@@ -322,9 +420,10 @@ function getStringFromNested(obj, key) {
 }
 
 async function loadORSettings() {
+  const url = `${API_URL}/openrouter/settings`;
   try {
-    const r = await fetch(`${API_URL}/openrouter/settings`);
-    if (!r.ok) throw new Error("Failed to load OpenRouter settings");
+    const r = await fetch(url);
+    if (!r.ok) throw new Error(`HTTP ${r.status}: ${await r.text()}`);
     const d = await r.json();
 
     state.openrouter.available = getArrayFromNested(d.openrouter_available_models, 'openrouter_available_models');
@@ -333,7 +432,10 @@ async function loadORSettings() {
 
     renderModelList('openrouter');
   } catch (e) {
-    console.error(e);
+    console.error(`[loadORSettings] ${formatApiError(url, e)}`);
+    const statusEl = document.getElementById('settings-or-status');
+    statusEl.textContent = formatApiError(url, e);
+    statusEl.style.color = "red";
   }
 }
 
@@ -353,17 +455,19 @@ async function saveORSettings() {
     });
     if (!r.ok) throw new Error(await r.text());
     status.textContent = "Saved!";
+    status.style.color = "#0f0";
     setTimeout(() => status.textContent = "", 3000);
   } catch (e) {
-    status.textContent = `Error: ${e.message}`;
+    status.textContent = formatApiError(`${API_URL}/openrouter/settings`, e);
     status.style.color = "red";
   }
 }
 
 async function loadLMSettings() {
+  const url = `${API_URL}/lmstudio/settings`;
   try {
-    const r = await fetch(`${API_URL}/lmstudio/settings`);
-    if (!r.ok) throw new Error("Failed to load LM Studio settings");
+    const r = await fetch(url);
+    if (!r.ok) throw new Error(`HTTP ${r.status}: ${await r.text()}`);
     const d = await r.json();
 
     state.lmstudio.available = getArrayFromNested(d.lmstudio_available_models, 'lmstudio_available_models');
@@ -372,7 +476,10 @@ async function loadLMSettings() {
 
     renderModelList('lmstudio');
   } catch (e) {
-    console.error(e);
+    console.error(`[loadLMSettings] ${formatApiError(url, e)}`);
+    const statusEl = document.getElementById('settings-lm-status');
+    statusEl.textContent = formatApiError(url, e);
+    statusEl.style.color = "red";
   }
 }
 
@@ -392,16 +499,18 @@ async function saveLMSettings() {
     });
     if (!r.ok) throw new Error(await r.text());
     status.textContent = "Saved!";
+    status.style.color = "#0f0";
     setTimeout(() => status.textContent = "", 3000);
   } catch (e) {
-    status.textContent = `Error: ${e.message}`;
+    status.textContent = formatApiError(`${API_URL}/lmstudio/settings`, e);
     status.style.color = "red";
   }
 }
 
 async function loadOllamaModels() {
+  const url = `${API_URL}/ollama/models`;
   try {
-    const r = await fetch(`${API_URL}/ollama/models`);
+    const r = await fetch(url);
     if (!r.ok) throw new Error(await r.text());
     const d = await r.json();
     const models = d.models || [];
@@ -414,14 +523,23 @@ async function loadOllamaModels() {
       </tr>`
     ).join('');
   } catch (e) {
-    document.getElementById('ollama-models').innerHTML = `<tr><td colspan="3" style="color:red">Error loading models: ${e.message}</td></tr>`;
+    const tbody = document.getElementById('ollama-models');
+    tbody.innerHTML = '';
+    const tr = document.createElement('tr');
+    const td = document.createElement('td');
+    td.colSpan = 3;
+    td.style.color = 'red';
+    td.textContent = formatApiError(url, e);
+    tr.appendChild(td);
+    tbody.appendChild(tr);
   }
 }
 
 async function loadSettings() {
+  const url = `${API_URL}/ollama/settings`;
   try {
-    const r = await fetch(`${API_URL}/ollama/settings`);
-    if (!r.ok) throw new Error("Failed to load settings");
+    const r = await fetch(url);
+    if (!r.ok) throw new Error(`HTTP ${r.status}: ${await r.text()}`);
     const d = await r.json();
 
     state.ollama.available = getArrayFromNested(d.ollama_available_models, 'ollama_available_models');
@@ -430,7 +548,10 @@ async function loadSettings() {
 
     renderModelList('ollama');
   } catch (e) {
-    console.error(e);
+    console.error(`[loadSettings] ${formatApiError(url, e)}`);
+    const statusEl = document.getElementById('settings-status');
+    statusEl.textContent = formatApiError(url, e);
+    statusEl.style.color = "red";
   }
 }
 
@@ -450,9 +571,10 @@ async function saveSettings() {
     });
     if (!r.ok) throw new Error(await r.text());
     status.textContent = "Saved!";
+    status.style.color = "#0f0";
     setTimeout(() => status.textContent = "", 3000);
   } catch (e) {
-    status.textContent = `Error: ${e.message}`;
+    status.textContent = formatApiError(`${API_URL}/ollama/settings`, e);
     status.style.color = "red";
   }
 }
@@ -479,7 +601,7 @@ async function pullModel() {
     document.getElementById('pull-model-name').value = '';
     loadOllamaModels();
   } catch (e) {
-    status.textContent = `Error: ${e.message}`;
+    status.textContent = formatApiError(`${API_URL}/ollama/pull`, e);
     status.style.color = "red";
   } finally {
     btn.disabled = false;
@@ -499,13 +621,19 @@ async function deleteModel(name) {
   }
 }
 
+function loadAllSettings() {
+  loadOllamaModels();
+  loadSettings();
+  loadGlobalSettings();
+  loadORSettings();
+  loadLMSettings();
+}
+
+// ── Startup ────────────────────────────────────────────────────────
 refresh();
-loadOllamaModels();
-loadSettings();
-loadGlobalSettings();
-loadORSettings();
-loadLMSettings();
+initialConnect(); // checks API health, retries, then loads settings when connected
 setInterval(refresh, 2000);
+setInterval(checkApiHealth, 15000); // periodic health check
 </script>
 </body>
 </html>
