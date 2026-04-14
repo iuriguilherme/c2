@@ -1,0 +1,608 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AGI Settings</title>
+<style>
+  body { font-family: monospace; background: #0a0a0a; color: #0f0; margin: 0; padding: 20px; }
+  h1 { color: #0f0; font-size: 1.2rem; }
+  table { border-collapse: collapse; width: 100%; margin-top: 16px; }
+  th, td { border: 1px solid #1a1a1a; padding: 6px 10px; text-align: left; }
+  th { color: #888; font-weight: normal; }
+  td { color: #ccc; }
+  .section { margin-top: 40px; border-top: 1px solid #333; padding-top: 20px; }
+  input, button { background: #1a1a1a; color: #0f0; border: 1px solid #333; padding: 4px 8px; font-family: monospace; }
+  button:hover { background: #333; cursor: pointer; }
+  .model-list-item {
+    display: inline-block;
+    padding: 4px 8px;
+    margin: 4px;
+    border: 1px solid #333;
+    background: #111;
+  }
+  .model-list-item.allowed {
+    background: #040;
+    border-color: #0f0;
+  }
+  .model-list-item .model-toggle-btn,
+  .model-list-item .remove-btn {
+    background: transparent;
+    border: 0;
+    padding: 0;
+    font-family: monospace;
+  }
+  .model-list-item .model-toggle-btn {
+    color: #ccc;
+  }
+  .model-list-item .remove-btn {
+    margin-left: 8px;
+    color: red;
+    font-weight: bold;
+    background: transparent;
+    border: none;
+    padding: 0;
+  }
+  select { background: #1a1a1a; color: #0f0; border: 1px solid #333; padding: 4px 8px; font-family: monospace; }
+  #api-status {
+    padding: 8px 12px;
+    margin: 10px 0;
+    border: 1px solid #333;
+    font-size: 0.9rem;
+  }
+  #api-status.connected {
+    background: #041a04;
+    border-color: #0a0;
+    color: #0f0;
+  }
+  #api-status.disconnected {
+    background: #1a0404;
+    border-color: #a00;
+    color: #f44;
+  }
+  #api-status.retrying {
+    background: #1a1a04;
+    border-color: #aa0;
+    color: #ff4;
+  }
+  .error-detail {
+    color: #f44;
+    font-size: 0.85rem;
+    margin-top: 4px;
+  }
+  .nav { margin-bottom: 20px; }
+  .nav a { color: #0f0; text-decoration: none; border: 1px solid #333; padding: 4px 8px; background: #1a1a1a; }
+  .nav a:hover { background: #333; }
+</style>
+</head>
+<body>
+<div class="nav">
+  <a href="/">&larr; Back to Simulation</a>
+</div>
+<h1>AGI Entity Simulation Settings</h1>
+<div id="api-status" class="disconnected">⏳ Checking API connection...</div>
+
+<div class="section">
+  <h2>Global Settings</h2>
+  <div>
+    <label>Allowed Providers (comma separated):</label><br>
+    <input type="text" id="settings-global-providers" style="width: 400px;" placeholder="e.g. ollama, openrouter, lmstudio, anthropic"><br><br>
+    <button onclick="saveGlobalSettings()">Save Global Settings</button>
+    <span id="settings-global-status" style="margin-left: 10px; color: #aaa;"></span>
+  </div>
+</div>
+
+<div class="section">
+  <h2>Ollama Management</h2>
+  <div style="margin-bottom: 20px;">
+    <strong>Local Downloaded Models</strong>
+    <table>
+      <thead>
+        <tr><th>Name</th><th>Size</th><th>Action</th></tr>
+      </thead>
+      <tbody id="ollama-models"></tbody>
+    </table>
+  </div>
+
+  <div style="margin-bottom: 20px;">
+    <strong>Pull New Model</strong><br>
+    <input type="text" id="pull-model-name" placeholder="e.g. mistral">
+    <button onclick="pullModel()" id="btn-pull">Pull</button>
+    <span id="pull-status" style="margin-left: 10px; color: #aaa;"></span>
+  </div>
+
+  <div>
+    <strong>Simulation Settings (Text Models)</strong><br>
+
+    <label>Available Models:</label>
+    <div id="ollama-available-list" style="margin-bottom: 10px;"></div>
+
+    <input type="text" id="ollama-add-available" placeholder="e.g. llama3.2">
+    <button onclick="addAvailableModel('ollama')">Add Available Model</button><br><br>
+
+    <label>Default Fallback Model:</label><br>
+    <select id="ollama-default-select" style="width: 300px;"></select><br><br>
+
+    <button onclick="saveSettings()">Save Settings</button>
+    <span id="settings-status" style="margin-left: 10px; color: #aaa;"></span>
+  </div>
+</div>
+
+<div class="section">
+  <h2>OpenRouter Settings</h2>
+  <div>
+    <strong>Simulation Settings (Text Models)</strong><br>
+
+    <label>Available Models:</label>
+    <div id="openrouter-available-list" style="margin-bottom: 10px;"></div>
+
+    <input type="text" id="openrouter-add-available" placeholder="e.g. openai/gpt-4o-mini">
+    <button onclick="addAvailableModel('openrouter')">Add Available Model</button><br><br>
+
+    <label>Default Fallback Model:</label><br>
+    <select id="openrouter-default-select" style="width: 400px;"></select><br><br>
+
+    <button onclick="saveORSettings()">Save OpenRouter Settings</button>
+    <span id="settings-or-status" style="margin-left: 10px; color: #aaa;"></span>
+  </div>
+</div>
+
+<div class="section">
+  <h2>LM Studio Settings</h2>
+  <div>
+    <strong>Simulation Settings (Text Models)</strong><br>
+
+    <label>Available Models:</label>
+    <div id="lmstudio-available-list" style="margin-bottom: 10px;"></div>
+
+    <input type="text" id="lmstudio-add-available" placeholder="e.g. llama-3">
+    <button onclick="addAvailableModel('lmstudio')">Add Available Model</button><br><br>
+
+    <label>Default Fallback Model:</label><br>
+    <select id="lmstudio-default-select" style="width: 400px;"></select><br><br>
+
+    <button onclick="saveLMSettings()">Save LM Studio Settings</button>
+    <span id="settings-lm-status" style="margin-left: 10px; color: #aaa;"></span>
+  </div>
+</div>
+
+<script>
+const API_URL = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1"
+    ? "http://localhost:8000"
+    : window.location.origin.replace("5000", "8000");
+
+// ── API Connection Status ──────────────────────────────────────────
+let apiConnected = false;
+
+function setApiStatus(status, message) {
+  const el = document.getElementById('api-status');
+  el.className = status; // 'connected', 'disconnected', or 'retrying'
+  el.textContent = message;
+}
+
+function formatApiError(url, err) {
+  if (err instanceof TypeError && err.message === 'Failed to fetch') {
+    return `Cannot reach API at ${url} — is the api service running? Check: docker compose ps`;
+  }
+  if (err.message && err.message.includes('ERR_EMPTY_RESPONSE')) {
+    return `API at ${url} returned empty response — the api service may be starting up or crashed. Check: docker compose logs api`;
+  }
+  return `Request to ${url} failed: ${err.message}`;
+}
+
+async function checkApiHealth() {
+  const url = `${API_URL}/health`;
+  try {
+    const r = await fetch(url, { signal: AbortSignal.timeout(5000) });
+    if (r.ok) {
+      if (!apiConnected) {
+        apiConnected = true;
+        if (retryTimer) { clearTimeout(retryTimer); retryTimer = null; }
+        setApiStatus('connected', `✓ API connected at ${API_URL}`);
+        // Load all settings now that API is available
+        loadAllSettings();
+      }
+      return true;
+    }
+    apiConnected = false;
+    setApiStatus('disconnected', `✗ API responded with HTTP ${r.status} at ${url}`);
+    return false;
+  } catch (e) {
+    apiConnected = false;
+    setApiStatus('disconnected', `✗ ${formatApiError(url, e)}`);
+    return false;
+  }
+}
+
+// ── Retry Logic ────────────────────────────────────────────────────
+const RETRY_DELAYS = [2000, 3000, 5000, 8000, 13000]; // 5 retries with increasing delay
+let retryCount = 0;
+let retryTimer = null;
+
+async function initialConnect() {
+  const ok = await checkApiHealth();
+  if (!ok && retryCount < RETRY_DELAYS.length) {
+    const delay = RETRY_DELAYS[retryCount];
+    retryCount++;
+    setApiStatus('retrying',
+      `⟳ API not reachable at ${API_URL} — retry ${retryCount}/${RETRY_DELAYS.length} in ${delay/1000}s... (is the api service running?)`
+    );
+    retryTimer = setTimeout(initialConnect, delay);
+  } else if (!ok) {
+    setApiStatus('disconnected',
+      `✗ Cannot reach API at ${API_URL} after ${RETRY_DELAYS.length} retries. Check: docker compose logs api`
+    );
+  }
+}
+
+// ── Store local state for UI ───────────────────────────────────────
+const state = {
+  ollama: { available: [], allowed: [], default: "" },
+  openrouter: { available: [], allowed: [], default: "" },
+  lmstudio: { available: [], allowed: [], default: "" }
+};
+
+function renderModelList(provider) {
+  const container = document.getElementById(`${provider}-available-list`);
+  container.innerHTML = '';
+
+  state[provider].available.forEach(model => {
+    const el = document.createElement('div');
+    el.className = 'model-list-item ' + (state[provider].allowed.includes(model) ? 'allowed' : '');
+
+    const textButton = document.createElement('button');
+    textButton.type = 'button';
+    textButton.className = 'model-toggle-btn';
+    textButton.textContent = model;
+    textButton.onclick = () => toggleAllowed(provider, model);
+    el.appendChild(textButton);
+
+    const removeBtn = document.createElement('button');
+    removeBtn.type = 'button';
+    removeBtn.className = 'remove-btn';
+    removeBtn.textContent = 'x';
+    removeBtn.setAttribute('aria-label', `Remove model ${model}`);
+    removeBtn.onclick = (e) => {
+      e.stopPropagation();
+      removeAvailableModel(provider, model);
+    };
+    el.appendChild(removeBtn);
+
+    container.appendChild(el);
+  });
+
+  updateDefaultDropdown(provider);
+}
+
+function updateDefaultDropdown(provider) {
+  const select = document.getElementById(`${provider}-default-select`);
+  select.innerHTML = '';
+
+  const allowed = state[provider].allowed;
+  if (allowed.length === 0) {
+    const opt = document.createElement('option');
+    opt.value = "";
+    opt.textContent = "No allowed models";
+    select.appendChild(opt);
+  } else {
+    allowed.forEach(model => {
+      const opt = document.createElement('option');
+      opt.value = model;
+      opt.textContent = model;
+      if (state[provider].default === model) {
+        opt.selected = true;
+      }
+      select.appendChild(opt);
+    });
+  }
+}
+
+function toggleAllowed(provider, model) {
+  const idx = state[provider].allowed.indexOf(model);
+  if (idx > -1) {
+    state[provider].allowed.splice(idx, 1);
+  } else {
+    state[provider].allowed.push(model);
+  }
+
+  // If default is no longer allowed, clear it
+  if (state[provider].default === model && idx > -1) {
+      if(state[provider].allowed.length > 0) {
+          state[provider].default = state[provider].allowed[0];
+      } else {
+          state[provider].default = "";
+      }
+  }
+
+  renderModelList(provider);
+}
+
+function addAvailableModel(provider) {
+  const input = document.getElementById(`${provider}-add-available`);
+  const model = input.value.trim();
+  if (model && !state[provider].available.includes(model)) {
+    state[provider].available.push(model);
+    input.value = '';
+    renderModelList(provider);
+  }
+}
+
+function removeAvailableModel(provider, model) {
+  state[provider].available = state[provider].available.filter(m => m !== model);
+  state[provider].allowed = state[provider].allowed.filter(m => m !== model);
+  if (state[provider].default === model) {
+      if(state[provider].allowed.length > 0) {
+          state[provider].default = state[provider].allowed[0];
+      } else {
+          state[provider].default = "";
+      }
+  }
+  renderModelList(provider);
+}
+
+// ── Settings Loaders ───────────────────────────────────────────────
+async function loadGlobalSettings() {
+  const url = `${API_URL}/settings`;
+  try {
+    const r = await fetch(url);
+    if (!r.ok) throw new Error(`HTTP ${r.status}: ${await r.text()}`);
+    const d = await r.json();
+    document.getElementById('settings-global-providers').value = d.allowed_providers ? d.allowed_providers.join(', ') : '';
+  } catch (e) {
+    console.error(`[loadGlobalSettings] ${formatApiError(url, e)}`);
+    const statusEl = document.getElementById('settings-global-status');
+    statusEl.textContent = formatApiError(url, e);
+    statusEl.style.color = "red";
+  }
+}
+
+async function saveGlobalSettings() {
+  const allowedRaw = document.getElementById('settings-global-providers').value;
+  const allowed = allowedRaw ? allowedRaw.split(',').map(s => s.trim()).filter(Boolean) : [];
+  const status = document.getElementById('settings-global-status');
+
+  try {
+    const r = await fetch(`${API_URL}/settings`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ allowed_providers: allowed })
+    });
+    if (!r.ok) throw new Error(await r.text());
+    status.textContent = "Saved!";
+    status.style.color = "#0f0";
+    setTimeout(() => status.textContent = "", 3000);
+  } catch (e) {
+    status.textContent = formatApiError(`${API_URL}/settings`, e);
+    status.style.color = "red";
+  }
+}
+
+function getArrayFromNested(obj, key) {
+    if(!obj) return [];
+    if(Array.isArray(obj)) return obj; // backwards compatible
+    if(obj.text && Array.isArray(obj.text)) return obj.text;
+    return [];
+}
+function getStringFromNested(obj, key) {
+    if(!obj) return "";
+    if(typeof obj === 'string') return obj; // backwards compatible
+    if(obj.text && typeof obj.text === 'string') return obj.text;
+    return "";
+}
+
+async function loadORSettings() {
+  const url = `${API_URL}/openrouter/settings`;
+  try {
+    const r = await fetch(url);
+    if (!r.ok) throw new Error(`HTTP ${r.status}: ${await r.text()}`);
+    const d = await r.json();
+
+    state.openrouter.available = getArrayFromNested(d.openrouter_available_models, 'openrouter_available_models');
+    state.openrouter.allowed = getArrayFromNested(d.openrouter_allowed_models, 'openrouter_allowed_models');
+    state.openrouter.default = getStringFromNested(d.openrouter_default_model, 'openrouter_default_model');
+
+    renderModelList('openrouter');
+  } catch (e) {
+    console.error(`[loadORSettings] ${formatApiError(url, e)}`);
+    const statusEl = document.getElementById('settings-or-status');
+    statusEl.textContent = formatApiError(url, e);
+    statusEl.style.color = "red";
+  }
+}
+
+async function saveORSettings() {
+  const defaultModel = document.getElementById('openrouter-default-select').value || state.openrouter.default;
+  const status = document.getElementById('settings-or-status');
+
+  try {
+    const r = await fetch(`${API_URL}/openrouter/settings`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        openrouter_available_models: { text: state.openrouter.available },
+        openrouter_allowed_models: { text: state.openrouter.allowed },
+        openrouter_default_model: { text: defaultModel }
+      })
+    });
+    if (!r.ok) throw new Error(await r.text());
+    status.textContent = "Saved!";
+    status.style.color = "#0f0";
+    setTimeout(() => status.textContent = "", 3000);
+  } catch (e) {
+    status.textContent = formatApiError(`${API_URL}/openrouter/settings`, e);
+    status.style.color = "red";
+  }
+}
+
+async function loadLMSettings() {
+  const url = `${API_URL}/lmstudio/settings`;
+  try {
+    const r = await fetch(url);
+    if (!r.ok) throw new Error(`HTTP ${r.status}: ${await r.text()}`);
+    const d = await r.json();
+
+    state.lmstudio.available = getArrayFromNested(d.lmstudio_available_models, 'lmstudio_available_models');
+    state.lmstudio.allowed = getArrayFromNested(d.lmstudio_allowed_models, 'lmstudio_allowed_models');
+    state.lmstudio.default = getStringFromNested(d.lmstudio_default_model, 'lmstudio_default_model');
+
+    renderModelList('lmstudio');
+  } catch (e) {
+    console.error(`[loadLMSettings] ${formatApiError(url, e)}`);
+    const statusEl = document.getElementById('settings-lm-status');
+    statusEl.textContent = formatApiError(url, e);
+    statusEl.style.color = "red";
+  }
+}
+
+async function saveLMSettings() {
+  const defaultModel = document.getElementById('lmstudio-default-select').value || state.lmstudio.default;
+  const status = document.getElementById('settings-lm-status');
+
+  try {
+    const r = await fetch(`${API_URL}/lmstudio/settings`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        lmstudio_available_models: { text: state.lmstudio.available },
+        lmstudio_allowed_models: { text: state.lmstudio.allowed },
+        lmstudio_default_model: { text: defaultModel }
+      })
+    });
+    if (!r.ok) throw new Error(await r.text());
+    status.textContent = "Saved!";
+    status.style.color = "#0f0";
+    setTimeout(() => status.textContent = "", 3000);
+  } catch (e) {
+    status.textContent = formatApiError(`${API_URL}/lmstudio/settings`, e);
+    status.style.color = "red";
+  }
+}
+
+async function loadOllamaModels() {
+  const url = `${API_URL}/ollama/models`;
+  try {
+    const r = await fetch(url);
+    if (!r.ok) throw new Error(await r.text());
+    const d = await r.json();
+    const models = d.models || [];
+    const tbody = document.getElementById('ollama-models');
+    tbody.innerHTML = models.map(m =>
+      `<tr>
+        <td>${m.name}</td>
+        <td>${(m.size / 1024 / 1024 / 1024).toFixed(2)} GB</td>
+        <td><button onclick="deleteModel('${m.name}')">Delete</button></td>
+      </tr>`
+    ).join('');
+  } catch (e) {
+    const tbody = document.getElementById('ollama-models');
+    tbody.innerHTML = '';
+    const tr = document.createElement('tr');
+    const td = document.createElement('td');
+    td.colSpan = 3;
+    td.style.color = 'red';
+    td.textContent = formatApiError(url, e);
+    tr.appendChild(td);
+    tbody.appendChild(tr);
+  }
+}
+
+async function loadSettings() {
+  const url = `${API_URL}/ollama/settings`;
+  try {
+    const r = await fetch(url);
+    if (!r.ok) throw new Error(`HTTP ${r.status}: ${await r.text()}`);
+    const d = await r.json();
+
+    state.ollama.available = getArrayFromNested(d.ollama_available_models, 'ollama_available_models');
+    state.ollama.allowed = getArrayFromNested(d.ollama_allowed_models, 'ollama_allowed_models');
+    state.ollama.default = getStringFromNested(d.ollama_default_model, 'ollama_default_model');
+
+    renderModelList('ollama');
+  } catch (e) {
+    console.error(`[loadSettings] ${formatApiError(url, e)}`);
+    const statusEl = document.getElementById('settings-status');
+    statusEl.textContent = formatApiError(url, e);
+    statusEl.style.color = "red";
+  }
+}
+
+async function saveSettings() {
+  const defaultModel = document.getElementById('ollama-default-select').value || state.ollama.default;
+  const status = document.getElementById('settings-status');
+
+  try {
+    const r = await fetch(`${API_URL}/ollama/settings`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ollama_available_models: { text: state.ollama.available },
+        ollama_allowed_models: { text: state.ollama.allowed },
+        ollama_default_model: { text: defaultModel }
+      })
+    });
+    if (!r.ok) throw new Error(await r.text());
+    status.textContent = "Saved!";
+    status.style.color = "#0f0";
+    setTimeout(() => status.textContent = "", 3000);
+  } catch (e) {
+    status.textContent = formatApiError(`${API_URL}/ollama/settings`, e);
+    status.style.color = "red";
+  }
+}
+
+async function pullModel() {
+  const name = document.getElementById('pull-model-name').value;
+  if (!name) return;
+  const btn = document.getElementById('btn-pull');
+  const status = document.getElementById('pull-status');
+
+  btn.disabled = true;
+  status.textContent = "Pulling... (this may take a while)";
+  status.style.color = "#aaa";
+
+  try {
+    const r = await fetch(`${API_URL}/ollama/pull`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: name })
+    });
+    if (!r.ok) throw new Error(await r.text());
+    status.textContent = "Success!";
+    status.style.color = "#0f0";
+    document.getElementById('pull-model-name').value = '';
+    loadOllamaModels();
+  } catch (e) {
+    status.textContent = formatApiError(`${API_URL}/ollama/pull`, e);
+    status.style.color = "red";
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function deleteModel(name) {
+  if (!confirm(`Are you sure you want to delete ${name}?`)) return;
+  try {
+    const r = await fetch(`${API_URL}/ollama/models/${encodeURIComponent(name)}`, {
+      method: 'DELETE'
+    });
+    if (!r.ok) throw new Error(await r.text());
+    loadOllamaModels();
+  } catch (e) {
+    alert(`Error deleting model: ${e.message}`);
+  }
+}
+
+function loadAllSettings() {
+  loadOllamaModels();
+  loadSettings();
+  loadGlobalSettings();
+  loadORSettings();
+  loadLMSettings();
+}
+
+// ── Startup ────────────────────────────────────────────────────────
+initialConnect(); // checks API health, retries, then loads settings when connected
+setInterval(checkApiHealth, 15000); // periodic health check
+</script>
+</body>
+</html>
