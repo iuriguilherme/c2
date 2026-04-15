@@ -6,12 +6,13 @@ Usage:
     python engine.py
 
 Environment:
-    REDIS_URL           Redis connection string (default: redis://localhost:6379)
-    OLLAMA_BASE_URL     Ollama server URL (default: http://localhost:11434)
-    VOID_WIDTH          Width of void space (default: 1000.0)
-    VOID_HEIGHT         Height of void space (default: 1000.0)
-    INITIAL_ENTITIES    Number of starting entities (default: 5)
-    TICK_INTERVAL_SEC   Seconds between ticks (default: 2.0)
+    REDIS_URL                   Redis connection string (default: redis://localhost:6379)
+    OLLAMA_BASE_URL             Ollama server URL (default: http://localhost:11434)
+    VOID_WIDTH                  Width of void space (default: 1000.0)
+    VOID_HEIGHT                 Height of void space (default: 1000.0)
+    INITIAL_ENTITIES            Number of starting entities (default: 5)
+    TICK_INTERVAL_SEC           Seconds between ticks (default: 2.0)
+    SPAWN_RATE_CAP_PERCENT      Max offspring spawned per tick as % of population (0-100, default: 5.0)
 """
 import asyncio
 import logging

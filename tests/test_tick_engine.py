@@ -114,6 +114,7 @@ async def test_divide_action_calls_spawn_offspring():
         void=void,
         model_pool=_silent_mock_pool(),
         reproduction_handler=mock_repro,
+        spawn_rate_cap_percent=100.0,
     )
 
     called = []
@@ -187,7 +188,7 @@ async def test_spawn_rate_cap():
 
     # Check they were removed from the queue
     for eid in called:
-        assert not any(e.id == eid for e in engine._spawn_queue)
+        assert eid not in engine._spawn_queue
 
     called.clear()
 
@@ -330,6 +331,7 @@ async def test_integration_two_generation_via_tick():
         void=void,
         model_pool=model_pool,
         reproduction_handler=reproduction_handler,
+        spawn_rate_cap_percent=100.0,
     )
 
     # Parent entity — think every tick, reproduction_threshold=1 so divide is
