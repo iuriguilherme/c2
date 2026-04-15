@@ -51,6 +51,11 @@ async def settings_page():
     return await render_template("settings.html")
 
 
+@app.route("/neurons")
+async def neurons_page():
+    return await render_template("neurons.html")
+
+
 @app.route("/api/state")
 async def state():
     if not _redis:

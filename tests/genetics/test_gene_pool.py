@@ -14,11 +14,11 @@ class TestGenePoolLoading:
     def test_gene_pool_loads_from_default_path(self):
         """Gene pool loads from data/gene_pool.json by default."""
         pool = GenePool.load()
-        assert len(pool.definitions) == 6
+        assert len(pool.definitions) == 7
         assert all(gt in pool.definitions for gt in GeneType)
 
     def test_gene_pool_contains_all_v1_genes(self):
-        """V1 gene pool contains exactly 6 gene types."""
+        """V1 gene pool contains exactly 7 gene types."""
         pool = GenePool.load()
         expected_types = {
             GeneType.LIFESPAN,
@@ -27,6 +27,7 @@ class TestGenePoolLoading:
             GeneType.PERSONALITY_SEED,
             GeneType.THINK_INTERVAL,
             GeneType.REPRODUCTION_THRESHOLD,
+            GeneType.COGNITIVE_CLARITY,
         }
         assert set(pool.definitions.keys()) == expected_types
 
@@ -79,7 +80,7 @@ class TestDefaultGenome:
         pool = GenePool.load()
         genome = pool.default_genome()
 
-        assert len(genome.genes) == 6
+        assert len(genome.genes) == 7
         for gt in GeneType:
             assert gt in genome.genes
 
@@ -178,4 +179,4 @@ class TestLoadGenePoolConvenience:
         """load_gene_pool() returns a GenePool instance."""
         pool = load_gene_pool()
         assert isinstance(pool, GenePool)
-        assert len(pool.definitions) == 6
+        assert len(pool.definitions) == 7

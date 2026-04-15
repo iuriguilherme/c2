@@ -36,12 +36,34 @@ class ReproductionHandler:
         self._entity_counter += 1
         offspring_id = f"offspring-{tick}-{self._entity_counter}"
         assignment = self._model_pool.assign_random(rng=r)
+
+        neuron_pool_override = None
+        activation_functions = None
+        if hasattr(parent, "neuron_profile_id") and parent.neuron_profile_id:
+            from storage.redis import RedisPoolRepository
+            pool_repo = RedisPoolRepository(self._repo._r)
+            profile_data = await pool_repo.get_neuron_profile(parent.neuron_profile_id)
+            if profile_data:
+                from neural.models import NeuronProfile, NeuronDefinition
+                profile = NeuronProfile.model_validate(profile_data)
+                all_neurons = await pool_repo.get_all_neurons()
+                allowed_defs = {}
+                for nt in profile.allowed_neurons:
+                    if nt.value in all_neurons:
+                        allowed_defs[nt] = NeuronDefinition.model_validate(all_neurons[nt.value])
+                neuron_pool_override = NeuronPool(allowed_defs)
+                activation_functions = profile.activation_functions
+
         offspring = self._factory.create(
             entity_id=offspring_id,
             genome=offspring_genome,
             model_assignment=assignment,
             rng=r,
             parent_user_prompt=parent.user_prompt,
+            neuron_pool_override=neuron_pool_override,
+            activation_functions=activation_functions,
+            neuron_profile_id=parent.neuron_profile_id if hasattr(parent, "neuron_profile_id") else None,
+            parent_brain=parent.brain,
         )
         # Spawn near parent
         parent_pos = self._void.get_position(parent.id) or Position(500.0, 500.0)

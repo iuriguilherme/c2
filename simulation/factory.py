@@ -30,16 +30,34 @@ class EntityFactory:
         model_assignment: ModelAssignment,
         rng: random.Random | None = None,
         parent_user_prompt: str = "",
+        neuron_pool_override: NeuronPool | None = None,
+        activation_functions: list | None = None,
+        neuron_profile_id: str | None = None,
+        parent_brain: Brain | None = None,
     ) -> Entity:
         r = rng or random.Random()
 
-        brain = Brain.from_genome(genome, self._neuron_pool, rng=r)
+        if parent_brain:
+            brain = Brain.reproduce(
+                parent_brain,
+                genome,
+                neuron_pool_override or self._neuron_pool,
+                rng=r,
+                activation_functions=activation_functions,
+            )
+        else:
+            brain = Brain.from_genome(
+                genome,
+                neuron_pool_override or self._neuron_pool,
+                rng=r,
+                activation_functions=activation_functions,
+            )
 
         # System prompt: deterministic from personality_seed
         seed = int(genome.get(GeneType.PERSONALITY_SEED))
         personality_rng = random.Random(seed)
         template = personality_rng.choice(_PERSONALITY_TEMPLATES)
-        system_prompt = (
+        base_system_prompt = (
             f"{template}\n\n"
             f"You exist in a void simulation. Each tick you receive a Capability Manifest "
             f"describing what you can perceive and what actions are available to you. "
@@ -54,9 +72,12 @@ class EntityFactory:
             id=entity_id,
             genome=genome,
             brain=brain,
-            system_prompt=system_prompt,
+            base_system_prompt=base_system_prompt,
+            neural_system_prompt="",
+            learned_system_prompt="",
             user_prompt=parent_user_prompt,
             model=model_assignment.model,
             provider_name=model_assignment.provider_name,
             think_interval=think_interval,
+            neuron_profile_id=neuron_profile_id or "",
         )
