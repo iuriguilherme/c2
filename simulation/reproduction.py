@@ -54,6 +54,18 @@ class ReproductionHandler:
                 neuron_pool_override = NeuronPool(allowed_defs)
                 activation_functions = profile.activation_functions
 
+        import json
+        parent_brain_state = ""
+        if parent.brain:
+            try:
+                parent_brain_state = json.dumps({
+                    "activation_function": parent.brain.activation_function,
+                    "neurons": [{"type": n.neuron_type.value, "activation": n.activation} for n in parent.brain.neurons],
+                    "edges": parent.brain.edges
+                })
+            except Exception:
+                parent_brain_state = ""
+
         offspring = self._factory.create(
             entity_id=offspring_id,
             genome=offspring_genome,
@@ -65,6 +77,7 @@ class ReproductionHandler:
             neuron_profile_id=parent.neuron_profile_id if hasattr(parent, "neuron_profile_id") else None,
             parent_brain=parent.brain,
         )
+        offspring.parent_brain_state = parent_brain_state
         # Spawn near parent
         parent_pos = self._void.get_position(parent.id) or Position(500.0, 500.0)
         offspring.position_x = parent_pos.x + r.uniform(-20, 20)

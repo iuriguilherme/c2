@@ -267,4 +267,5 @@ class TickEngine:
             cached_action=data.get("cached_action", ""),
             cached_action_tick=int(data.get("cached_action_tick", -1)),
             neuron_profile_id=data.get("neuron_profile_id", ""),
+            parent_brain_state=data.get("parent_brain_state", ""),
         )

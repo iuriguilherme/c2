@@ -23,6 +23,7 @@ class Entity:
     cached_action: str = ""
     cached_action_tick: int = -1
     neuron_profile_id: str = ""
+    parent_brain_state: str = ""
 
     @property
     def system_prompt(self) -> str:
@@ -55,4 +56,5 @@ class Entity:
             "cached_action": self.cached_action,
             "cached_action_tick": str(self.cached_action_tick),
             "neuron_profile_id": self.neuron_profile_id,
+            "parent_brain_state": self.parent_brain_state,
         }

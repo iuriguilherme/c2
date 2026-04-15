@@ -22,45 +22,46 @@ class Brain:
         Performs a forward pass of the neural network.
         Update neuron activations based on incoming edges.
         """
-        new_activations = [0.0] * len(self.neurons)
-        for idx, inst in enumerate(self.neurons):
+        new_activations = {}
+        for inst in self.neurons:
             nt_val = inst.neuron_type.value
 
             # Sum inputs from all incoming edges
             total_input = inst.activation  # Self-activation or external input from environment
             for source_nt, target_nt, weight in self.edges:
                 if target_nt == nt_val:
-                    # Sum activations from all source neuron instances with the matching type.
-                    source_activation = sum(
-                        n.activation for n in self.neurons if n.neuron_type.value == source_nt
-                    )
-                    total_input += source_activation * weight
+                    # Find the source neuron activation
+                    source_inst = next((n for n in self.neurons if n.neuron_type.value == source_nt), None)
+                    if source_inst:
+                        total_input += source_inst.activation * weight
 
             # Apply activation function
             if self.activation_function == ActivationFunction.TANH:
-                new_activations[idx] = math.tanh(total_input)
+                new_activations[nt_val] = math.tanh(total_input)
             elif self.activation_function == ActivationFunction.SIGMOID:
-                new_activations[idx] = 1 / (1 + math.exp(-total_input))
+                new_activations[nt_val] = 1 / (1 + math.exp(-total_input))
             elif self.activation_function == ActivationFunction.RELU:
-                new_activations[idx] = max(0.0, total_input)
+                new_activations[nt_val] = max(0.0, total_input)
             else:
-                new_activations[idx] = total_input
+                new_activations[nt_val] = total_input
 
         # Update activations and clamp to [0, 1] if needed by NeuronInstance schema
-        for idx, inst in enumerate(self.neurons):
-            # Assuming activation bounds are 0.0 to 1.0 based on NeuronInstance Field(ge=0.0, le=1.0)
-            # Tanh goes from -1 to 1. If we clamp or normalize to 0-1, we should be careful.
-            # Let's map [-1, 1] to [0, 1] for Tanh if needed, or just clamp.
-            # Since ReLU can be > 1, we clamp to 1.0.
-            # Let's use max(0.0, min(1.0, val)) to be safe with the pydantic model.
-            raw_val = new_activations[idx]
+        for inst in self.neurons:
+            nt_val = inst.neuron_type.value
+            if nt_val in new_activations:
+                # Assuming activation bounds are 0.0 to 1.0 based on NeuronInstance Field(ge=0.0, le=1.0)
+                # Tanh goes from -1 to 1. If we clamp or normalize to 0-1, we should be careful.
+                # Let's map [-1, 1] to [0, 1] for Tanh if needed, or just clamp.
+                # Since ReLU can be > 1, we clamp to 1.0.
+                # Let's use max(0.0, min(1.0, val)) to be safe with the pydantic model.
+                raw_val = new_activations[nt_val]
 
-            # If tanh, it's [-1, 1], let's map to [0, 1] so it fits activation bounds: (tanh(x) + 1) / 2
-            if self.activation_function == ActivationFunction.TANH:
-                raw_val = (raw_val + 1.0) / 2.0
+                # If tanh, it's [-1, 1], let's map to [0, 1] so it fits activation bounds: (tanh(x) + 1) / 2
+                if self.activation_function == ActivationFunction.TANH:
+                    raw_val = (raw_val + 1.0) / 2.0
 
-            clamped_val = max(0.0, min(1.0, raw_val))
-            inst.activation = clamped_val
+                clamped_val = max(0.0, min(1.0, raw_val))
+                inst.activation = clamped_val
 
     @classmethod
     def reproduce(
