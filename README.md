@@ -64,6 +64,6 @@ See [`docs/solutions/best-practices/agi-entity-simulation-v1-architecture-2026-0
 
 ## License
 
-GPLv3 — see [LICENSE](./LICENSE)
+AGPLv3 — see [LICENSE](./LICENSE)
 
     Copyright (C) 2026  Iuri Guilherme
