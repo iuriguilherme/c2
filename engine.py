@@ -133,22 +133,26 @@ async def main() -> None:
     )
 
     rng = random.Random()
-    for i in range(n_entities):
-        genome = gene_pool.default_genome()
-        assignment = model_pool.assign_random(rng=rng)
-        entity = factory.create(
-            entity_id=f"entity-{i}",
-            genome=genome,
-            model_assignment=assignment,
-            rng=rng,
-        )
-        entity.position_x = rng.uniform(0, void_w)
-        entity.position_y = rng.uniform(0, void_h)
-        await repo.save(entity.id, entity.to_storage_dict())
-        void.set_position(entity.id, Position(entity.position_x, entity.position_y))
-        logger.info(
-            "Spawned %s using %s/%s", entity.id, assignment.provider_name, assignment.model
-        )
+
+    async def _spawn_initial():
+        for i in range(n_entities):
+            genome = gene_pool.default_genome()
+            assignment = model_pool.assign_random(rng=rng)
+            entity = factory.create(
+                entity_id=f"entity-{i}",
+                genome=genome,
+                model_assignment=assignment,
+                rng=rng,
+            )
+            entity.position_x = rng.uniform(0, void_w)
+            entity.position_y = rng.uniform(0, void_h)
+            await repo.save(entity.id, entity.to_storage_dict())
+            void.set_position(entity.id, Position(entity.position_x, entity.position_y))
+            logger.info(
+                "Spawned %s using %s/%s", entity.id, assignment.provider_name, assignment.model
+            )
+
+    await _spawn_initial()
 
     tick = 0
     logger.info(
@@ -156,6 +160,32 @@ async def main() -> None:
     )
 
     while True:
+        command = await redis.get("simulation:command")
+        if command and command.decode() == "reset":
+            logger.info("Resetting simulation state...")
+            await redis.delete("simulation:command")
+
+            # Clear all relevant data
+            await redis.delete("living_entities")
+            await redis.delete("ticks:main")
+
+            keys_to_delete = []
+            async for key in redis.scan_iter("entity:*"):
+                keys_to_delete.append(key)
+            async for key in redis.scan_iter("archive:*"):
+                keys_to_delete.append(key)
+            if keys_to_delete:
+                await redis.delete(*keys_to_delete)
+
+            void._positions.clear()
+            void._message_inbox.clear()
+            tick = 0
+            engine.current_tick = 0
+
+            await _spawn_initial()
+            logger.info("Simulation reset complete.")
+            continue
+
         tick += 1
         await engine.tick(tick=tick)
         living = await repo.list_living()
