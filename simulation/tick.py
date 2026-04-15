@@ -1,4 +1,5 @@
 import asyncio
+import collections
 import logging
 import random
 from genetics.models import GeneType, Genome
@@ -23,6 +24,7 @@ class TickEngine:
         model_pool: ModelPool,
         neuron_pool: NeuronPool | None = None,
         reproduction_handler=None,
+        spawn_rate_cap_percent: float = 5.0,
     ) -> None:
         self._repo = repo
         self._stream = stream
@@ -30,6 +32,9 @@ class TickEngine:
         self._model_pool = model_pool
         self._neuron_pool = neuron_pool or NeuronPool.load()
         self._reproduction_handler = reproduction_handler
+        self._spawn_rate_cap_percent = max(0.0, min(100.0, spawn_rate_cap_percent))
+        self._spawn_queue: collections.deque[str] = collections.deque()
+        self._spawn_queue_ids: set[str] = set()
         self._archive = EntityArchive(repo)
         self.current_tick = 0
 
@@ -40,6 +45,46 @@ class TickEngine:
         # Process all living entities concurrently
         tasks = [self._process_entity(eid, tick) for eid in entity_ids]
         await asyncio.gather(*tasks, return_exceptions=True)
+
+        # Process spawn queue governed by cap
+        max_spawns = max(0, int(len(entity_ids) * (self._spawn_rate_cap_percent / 100.0)))
+        spawn_work: list[tuple[str, asyncio.Task]] = []
+        while self._spawn_queue and len(spawn_work) < max_spawns:
+            parent_id = self._spawn_queue.popleft()
+            self._spawn_queue_ids.discard(parent_id)
+            if self._reproduction_handler is not None:
+                # Reload entity from repo to avoid stale references
+                data = await self._repo.load(parent_id)
+                if not data or data.get("alive") != "True":
+                    logger.debug("Skipping spawn for %s — parent no longer alive", parent_id)
+                    continue
+                parent_entity = self._load_entity(data)
+                spawn_work.append(
+                    (
+                        parent_id,
+                        asyncio.create_task(
+                            self._reproduction_handler.spawn_offspring(parent_entity, tick=self.current_tick)
+                        ),
+                    )
+                )
+
+        if spawn_work:
+            results = await asyncio.gather(
+                *(task for _, task in spawn_work),
+                return_exceptions=True,
+            )
+            for (parent_id, _), result in zip(spawn_work, results):
+                if isinstance(result, Exception):
+                    logger.error(
+                        "Failed to spawn offspring for parent %s on tick %s",
+                        parent_id,
+                        self.current_tick,
+                        exc_info=result,
+                    )
+                    # Re-queue failed spawns
+                    if parent_id not in self._spawn_queue_ids:
+                        self._spawn_queue.append(parent_id)
+                        self._spawn_queue_ids.add(parent_id)
 
         self._void.age_messages()
         await self._stream.publish_tick(tick=tick, entity_count=len(entity_ids))
@@ -66,6 +111,9 @@ class TickEngine:
         # Execute cached action from previous tick
         if entity.cached_action and entity.cached_action_tick >= 0:
             await self._execute_action(entity, entity.cached_action)
+            # Clear the cached action so it only executes once
+            entity.cached_action = ""
+            entity.cached_action_tick = -1
 
         # Decide whether to think this tick
         if entity.should_think(tick):
@@ -143,10 +191,11 @@ class TickEngine:
             self._void.broadcast(entity.id, message=message, radius=radius)
         elif action.type == "divide":
             if self._reproduction_handler is not None:
-                logger.debug("Entity %s triggered divide — spawning offspring", entity.id)
-                asyncio.create_task(
-                    self._reproduction_handler.spawn_offspring(entity, tick=self.current_tick)
-                )
+                logger.debug("Entity %s triggered divide — queuing for offspring spawn", entity.id)
+                # Check to avoid duplicate queuing if already queued
+                if entity.id not in self._spawn_queue_ids:
+                    self._spawn_queue.append(entity.id)
+                    self._spawn_queue_ids.add(entity.id)
 
     def _load_entity(self, data: dict) -> Entity:
         genome = Genome.model_validate_json(data["genome"])

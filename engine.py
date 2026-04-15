@@ -6,12 +6,13 @@ Usage:
     python engine.py
 
 Environment:
-    REDIS_URL           Redis connection string (default: redis://localhost:6379)
-    OLLAMA_BASE_URL     Ollama server URL (default: http://localhost:11434)
-    VOID_WIDTH          Width of void space (default: 1000.0)
-    VOID_HEIGHT         Height of void space (default: 1000.0)
-    INITIAL_ENTITIES    Number of starting entities (default: 5)
-    TICK_INTERVAL_SEC   Seconds between ticks (default: 2.0)
+    REDIS_URL                   Redis connection string (default: redis://localhost:6379)
+    OLLAMA_BASE_URL             Ollama server URL (default: http://localhost:11434)
+    VOID_WIDTH                  Width of void space (default: 1000.0)
+    VOID_HEIGHT                 Height of void space (default: 1000.0)
+    INITIAL_ENTITIES            Number of starting entities (default: 5)
+    TICK_INTERVAL_SEC           Seconds between ticks (default: 2.0)
+    SPAWN_RATE_CAP_PERCENT      Max offspring spawned per tick as % of population (0-100, default: 5.0)
 """
 import asyncio
 import logging
@@ -60,6 +61,7 @@ async def main() -> None:
     void_h = float(os.environ.get("VOID_HEIGHT", settings.get("void_height", 1000.0)))
     n_entities = int(os.environ.get("INITIAL_ENTITIES", settings.get("initial_entities", 5)))
     tick_interval = float(os.environ.get("TICK_INTERVAL_SEC", settings.get("tick_interval_sec", 2.0)))
+    spawn_rate_cap_percent = float(os.environ.get("SPAWN_RATE_CAP_PERCENT", settings.get("spawn_rate_cap_percent", 5.0)))
     ollama_base_url = os.environ.get("OLLAMA_BASE_URL", settings.get("ollama_base_url", "http://localhost:11434"))
     lmstudio_base_url = os.environ.get("LMSTUDIO_BASE_URL", settings.get("lmstudio_base_url", "http://localhost:1234"))
     allowed_providers = settings.get("allowed_providers", ["ollama", "openrouter", "lmstudio", "anthropic"])
@@ -130,6 +132,7 @@ async def main() -> None:
         model_pool=model_pool,
         neuron_pool=neuron_pool,
         reproduction_handler=reproduction_handler,
+        spawn_rate_cap_percent=spawn_rate_cap_percent,
     )
 
     rng = random.Random()
