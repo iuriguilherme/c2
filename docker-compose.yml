@@ -7,6 +7,13 @@ services:
       - redis_data:/data
     command: redis-server --save 60 1 --loglevel warning
 
+  mongo:
+    image: mongo:7.0
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+
   api:
     build: .
     command: uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload
@@ -14,9 +21,11 @@ services:
       - "8000:8000"
     environment:
       - REDIS_URL=redis://redis:6379
+      - MONGO_URL=mongodb://mongo:27017
       - OLLAMA_BASE_URL=http://ollama:11434
     depends_on:
       - redis
+      - mongo
       - ollama
     volumes:
       - .:/app
@@ -29,9 +38,11 @@ services:
       - "5000:5000"
     environment:
       - REDIS_URL=redis://redis:6379
+      - MONGO_URL=mongodb://mongo:27017
       - OLLAMA_BASE_URL=http://ollama:11434
     depends_on:
       - redis
+      - mongo
       - ollama
     volumes:
       - .:/app
@@ -42,6 +53,7 @@ services:
     command: python engine.py
     environment:
       - REDIS_URL=redis://redis:6379
+      - MONGO_URL=mongodb://mongo:27017
       - OLLAMA_BASE_URL=http://ollama:11434
       - INITIAL_ENTITIES=5
       - TICK_INTERVAL_SEC=2.0
@@ -49,6 +61,7 @@ services:
       - VOID_HEIGHT=1000.0
     depends_on:
       - redis
+      - mongo
       - ollama
     volumes:
       - .:/app
@@ -63,3 +76,4 @@ services:
 
 volumes:
   redis_data:
+  mongo_data:

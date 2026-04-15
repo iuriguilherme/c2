@@ -66,6 +66,12 @@ async def main() -> None:
     lmstudio_base_url = os.environ.get("LMSTUDIO_BASE_URL", settings.get("lmstudio_base_url", "http://localhost:1234"))
     allowed_providers = settings.get("allowed_providers", ["ollama", "openrouter", "lmstudio", "anthropic"])
 
+    try:
+        from storage.mongo import init_mongo
+        await init_mongo()
+    except Exception as exc:
+        logger.error(f"Failed to initialize MongoDB/Beanie: {exc}")
+
     redis = aioredis.from_url(redis_url, decode_responses=False)
     repo = RedisEntityRepository(redis)
     stream = RedisTickStream(redis)
@@ -82,40 +88,11 @@ async def main() -> None:
     ]
     providers = [p for p in all_providers if p.name in allowed_providers]
     model_pool = ModelPool()
-    await model_pool.discover(providers)
+    await model_pool.discover(providers, settings=settings)
 
     if model_pool.size == 0:
-        fallback_added = False
-        for provider_name in allowed_providers:
-            if provider_name == "ollama":
-                default_model = settings.get("ollama_default_model", {})
-                default_model = default_model.get("text", "llama3.2") if isinstance(default_model, dict) else default_model
-                logger.warning(f"No models available — using Ollama with {default_model} as fallback")
-                p = next(p for p in all_providers if p.name == "ollama")
-                model_pool._pool.append((p, default_model))
-                fallback_added = True
-                break
-            elif provider_name == "openrouter":
-                default_model = settings.get("openrouter_default_model", {})
-                default_model = default_model.get("text", "openai/gpt-4o-mini") if isinstance(default_model, dict) else default_model
-                logger.warning(f"No models available — using OpenRouter with {default_model} as fallback")
-                p = next(p for p in all_providers if p.name == "openrouter")
-                model_pool._pool.append((p, default_model))
-                fallback_added = True
-                break
-            elif provider_name == "lmstudio":
-                default_model = settings.get("lmstudio_default_model", {})
-                default_model = default_model.get("text", "llama-3") if isinstance(default_model, dict) else default_model
-                logger.warning(f"No models available — using LM Studio with {default_model} as fallback")
-                p = next(p for p in all_providers if p.name == "lmstudio")
-                model_pool._pool.append((p, default_model))
-                fallback_added = True
-                break
-
-        if not fallback_added:
-            logger.warning("No models available and no viable fallback found — using Ollama with llama3.2")
-            p = next(p for p in all_providers if p.name == "ollama")
-            model_pool._pool.append((p, "llama3.2"))
+        logger.error("No models configured. Please check settings.json.")
+        raise RuntimeError("No models configured in settings. Please configure allowed models or a default model for at least one allowed provider.")
 
     factory = EntityFactory(gene_pool=gene_pool, neuron_pool=neuron_pool)
     reproduction_handler = ReproductionHandler(
@@ -138,14 +115,33 @@ async def main() -> None:
     rng = random.Random()
 
     async def _spawn_initial():
+        from storage.mongo import SystemPrompt
+
+        # Pre-fetch default prompts
+        default_prompts = await SystemPrompt.find({"is_default": True}).to_list()
+
         for i in range(n_entities):
             genome = gene_pool.default_genome()
             assignment = model_pool.assign_random(rng=rng)
+
+            sys_prompt = ""
+            if default_prompts:
+                p = rng.choice(default_prompts)
+                sys_prompt = (
+                    f"{p.content}\n\n"
+                    f"You exist in a void simulation. Each tick you receive a Capability Manifest "
+                    f"describing what you can perceive and what actions are available to you. "
+                    f"Respond with valid JSON: "
+                    '{"action": {"type": "<action_type>", "parameters": {...}}, '
+                    '"user_prompt_update": "<optional reflection>"}'
+                )
+
             entity = factory.create(
                 entity_id=f"entity-{i}",
                 genome=genome,
                 model_assignment=assignment,
                 rng=rng,
+                system_prompt=sys_prompt
             )
             entity.position_x = rng.uniform(0, void_w)
             entity.position_y = rng.uniform(0, void_h)

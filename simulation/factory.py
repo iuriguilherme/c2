@@ -30,23 +30,31 @@ class EntityFactory:
         model_assignment: ModelAssignment,
         rng: random.Random | None = None,
         parent_user_prompt: str = "",
+        system_prompt: str = "",
     ) -> Entity:
         r = rng or random.Random()
 
         brain = Brain.from_genome(genome, self._neuron_pool, rng=r)
 
-        # System prompt: deterministic from personality_seed
-        seed = int(genome.get(GeneType.PERSONALITY_SEED))
-        personality_rng = random.Random(seed)
-        template = personality_rng.choice(_PERSONALITY_TEMPLATES)
-        system_prompt = (
-            f"{template}\n\n"
-            f"You exist in a void simulation. Each tick you receive a Capability Manifest "
-            f"describing what you can perceive and what actions are available to you. "
-            f"Respond with valid JSON: "
-            '{"action": {"type": "<action_type>", "parameters": {...}}, '
-            '"user_prompt_update": "<optional reflection>"}'
-        )
+        if not system_prompt:
+            # System prompt: deterministic from personality_seed
+            seed = int(genome.get(GeneType.PERSONALITY_SEED))
+            personality_rng = random.Random(seed)
+            import asyncio
+            from storage.mongo import SystemPrompt
+
+            # Since this is synchronous, and we can't easily fetch from DB here without
+            # redesigning the engine spawn loop, we fallback to a simple default if none provided.
+            # In engine/API, the system prompt should ideally be fetched and passed in.
+            template = personality_rng.choice(_PERSONALITY_TEMPLATES)
+            system_prompt = (
+                f"{template}\n\n"
+                f"You exist in a void simulation. Each tick you receive a Capability Manifest "
+                f"describing what you can perceive and what actions are available to you. "
+                f"Respond with valid JSON: "
+                '{"action": {"type": "<action_type>", "parameters": {...}}, '
+                '"user_prompt_update": "<optional reflection>"}'
+            )
 
         think_interval = max(1, round(genome.get(GeneType.THINK_INTERVAL)))
 

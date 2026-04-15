@@ -14,6 +14,7 @@ SETTINGS_EXAMPLE_FILE = os.path.join(_ROOT, "settings.example.json")
 
 class GlobalSettingsModel(BaseModel):
     allowed_providers: list[str]
+    default_provider: str
 
 def get_settings_data() -> dict:
     for path in (SETTINGS_FILE, SETTINGS_EXAMPLE_FILE):
@@ -36,7 +37,11 @@ def get_settings_data() -> dict:
 def get_global_settings():
     """Get global simulation settings."""
     settings = get_settings_data()
-    return {"allowed_providers": settings.get("allowed_providers", ["ollama", "openrouter", "lmstudio", "anthropic"])}
+    return {
+        "available_providers": ["ollama", "openrouter", "lmstudio", "anthropic"],
+        "allowed_providers": settings.get("allowed_providers", ["ollama", "openrouter", "lmstudio", "anthropic"]),
+        "default_provider": settings.get("default_provider", "ollama")
+    }
 
 @router.post("/")
 def update_global_settings(settings: GlobalSettingsModel):

@@ -1,7 +1,7 @@
 {
   "ollama_available_models": { "text": [] },
   "ollama_allowed_models": { "text": [] },
-  "ollama_default_model": { "text": "llama3.2" },
+  "ollama_default_model": { "text": "smollm2:135m" },
   "ollama_base_url": "http://localhost:11434",
   "lmstudio_available_models": { "text": [] },
   "lmstudio_allowed_models": { "text": [] },
@@ -22,5 +22,6 @@
     "openrouter",
     "lmstudio",
     "anthropic"
-  ]
+  ],
+  "default_provider": "ollama"
 }

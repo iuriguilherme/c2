@@ -27,6 +27,9 @@ class EntityAddRequest(BaseModel):
     think_interval: Optional[float] = None
     reproduction_threshold: Optional[float] = None
     neuron_affinity: Optional[float] = None
+    provider: Optional[str] = None
+    model: Optional[str] = None
+    system_prompt: Optional[str] = None
 
 
 @router.post("/")
@@ -75,11 +78,10 @@ async def add_entity(
     ]
     providers = [p for p in all_providers if p.name in allowed_providers]
     model_pool = ModelPool()
-    await model_pool.discover(providers)
+    await model_pool.discover(providers, settings=settings)
 
-    if model_pool.size == 0:
-        p = next(p for p in all_providers if p.name == "ollama")
-        model_pool._pool.append((p, "llama3.2"))
+    if model_pool.size == 0 and not (req.provider and req.model):
+        raise HTTPException(status_code=400, detail="No models configured in settings.")
 
     seed = generate_random_seed()
     r = random.Random(seed)
@@ -97,14 +99,48 @@ async def add_entity(
     if req.neuron_affinity is not None:
         genome.genes[GeneType.NEURON_AFFINITY] = GeneInstance(gene_type=GeneType.NEURON_AFFINITY, value=req.neuron_affinity)
 
-    assignment = model_pool.assign_random(rng=r)
+    if req.provider and req.model:
+        from agents.pool import ModelAssignment
+        assignment = ModelAssignment(provider_name=req.provider, model=req.model)
+    else:
+        assignment = model_pool.assign_random(rng=r)
+
     entity_id = f"entity-manual-{int(time.time())}-{r.randint(1000, 9999)}"
+
+    sys_prompt = req.system_prompt or ""
+    if sys_prompt:
+        # Wrap it in the instruction template if it isn't already
+        if "Capability Manifest" not in sys_prompt:
+            sys_prompt = (
+                f"{sys_prompt}\n\n"
+                f"You exist in a void simulation. Each tick you receive a Capability Manifest "
+                f"describing what you can perceive and what actions are available to you. "
+                f"Respond with valid JSON: "
+                '{"action": {"type": "<action_type>", "parameters": {...}}, '
+                '"user_prompt_update": "<optional reflection>"}'
+            )
+
+    # If not provided, fetch a default one to emulate engine behavior
+    if not sys_prompt:
+        from storage.mongo import SystemPrompt
+        default_prompts = await SystemPrompt.find({"is_default": True}).to_list()
+        if default_prompts:
+            p = r.choice(default_prompts)
+            sys_prompt = (
+                f"{p.content}\n\n"
+                f"You exist in a void simulation. Each tick you receive a Capability Manifest "
+                f"describing what you can perceive and what actions are available to you. "
+                f"Respond with valid JSON: "
+                '{"action": {"type": "<action_type>", "parameters": {...}}, '
+                '"user_prompt_update": "<optional reflection>"}'
+            )
 
     entity = factory.create(
         entity_id=entity_id,
         genome=genome,
         model_assignment=assignment,
         rng=r,
+        system_prompt=sys_prompt,
     )
 
     void_w = float(os.environ.get("VOID_WIDTH", settings.get("void_width", 1000.0)))
@@ -144,3 +180,41 @@ async def get_archived_entity(
     if data is None:
         raise HTTPException(status_code=404, detail="Archived entity not found")
     return data
+
+
+class UserPromptUpdateRequest(BaseModel):
+    user_prompt: str
+
+@router.patch("/{entity_id}/user_prompt")
+async def update_user_prompt(
+    req: UserPromptUpdateRequest,
+    entity_id: str = Path(..., pattern=r"^[\w-]{1,128}$"),
+    redis=Depends(get_redis),
+) -> dict:
+    repo = RedisEntityRepository(redis)
+    data = await repo.load(entity_id)
+    if data is None:
+        raise HTTPException(status_code=404, detail="Entity not found")
+
+    data["user_prompt"] = req.user_prompt
+    await repo.save(entity_id, data)
+
+    return {"status": "ok", "message": "User prompt updated"}
+
+
+@router.delete("/{entity_id}")
+async def delete_entity(
+    entity_id: str = Path(..., pattern=r"^[\w-]{1,128}$"),
+    redis=Depends(get_redis),
+) -> dict:
+    repo = RedisEntityRepository(redis)
+    data = await repo.load(entity_id)
+    if data is None:
+        raise HTTPException(status_code=404, detail="Entity not found")
+
+    # "kill" the entity by archiving it and setting alive to false
+    data["alive"] = "False"
+    await repo.save(entity_id, data)
+    await repo.archive(entity_id)
+
+    return {"status": "ok", "message": f"Entity {entity_id} destroyed"}

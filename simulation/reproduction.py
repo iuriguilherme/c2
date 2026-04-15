@@ -36,12 +36,17 @@ class ReproductionHandler:
         self._entity_counter += 1
         offspring_id = f"offspring-{tick}-{self._entity_counter}"
         assignment = self._model_pool.assign_random(rng=r)
+
+        # When a child is spawned, if the parent has no system prompt (shouldn't happen), we give it one.
+        # Otherwise, the offspring inherits the system prompt, but we may also allow mutations in the future.
+        # For now, it copies the parent's system prompt exactly.
         offspring = self._factory.create(
             entity_id=offspring_id,
             genome=offspring_genome,
             model_assignment=assignment,
             rng=r,
             parent_user_prompt=parent.user_prompt,
+            system_prompt=parent.system_prompt,
         )
         # Spawn near parent
         parent_pos = self._void.get_position(parent.id) or Position(500.0, 500.0)

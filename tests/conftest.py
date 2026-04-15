@@ -19,6 +19,24 @@ from genetics.gene_pool import GenePool
 from genetics.models import GeneType, GeneInstance, Genome
 
 
+@pytest.fixture(autouse=True)
+async def mongo(monkeypatch):
+    from unittest.mock import AsyncMock, patch
+
+    # Since beanie + mongomock_motor is failing deep inside beanie internals with list_collection_names,
+    # let's mock beanie completely out for tests that don't specifically test DB functionality.
+
+    with patch("storage.mongo.init_mongo", new_callable=AsyncMock) as mock_init:
+
+        # We also need to mock SystemPrompt if tests use it.
+        # For simplicity, we just mock the find().to_list() chain
+        mock_find = AsyncMock()
+        mock_find.to_list = AsyncMock(return_value=[])
+
+        with patch("storage.mongo.SystemPrompt.find", return_value=mock_find):
+            with patch("storage.mongo.SystemPrompt.find_all", return_value=mock_find):
+                yield mock_init
+
 @pytest.fixture
 async def redis():
     """Provide a fake Redis instance for testing."""

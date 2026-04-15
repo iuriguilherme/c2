@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>System Prompts Database</title>
+<style>
+  body { font-family: monospace; background: #0a0a0a; color: #0f0; margin: 0; padding: 20px; }
+  h1, h2 { color: #0f0; font-size: 1.2rem; }
+  table { border-collapse: collapse; width: 100%; margin-top: 16px; margin-bottom: 20px; }
+  th, td { border: 1px solid #1a1a1a; padding: 6px 10px; text-align: left; }
+  th { color: #888; font-weight: normal; }
+  td { color: #ccc; }
+  .nav { margin-bottom: 20px; }
+  .nav a { font-family: monospace; font-size: 1rem; cursor: pointer; color: #0f0; text-decoration: none; border: 1px solid #333; padding: 4px 8px; background: #1a1a1a; margin-right: 10px; }
+  .nav a:hover { background: #333; }
+
+  .prompt-form { background: #111; padding: 15px; border: 1px solid #333; margin-bottom: 20px; }
+  .prompt-form label { display: block; margin-bottom: 5px; color: #888; }
+  .prompt-form input[type="text"], .prompt-form textarea { width: 100%; box-sizing: border-box; background: #000; color: #0f0; border: 1px solid #333; padding: 5px; font-family: monospace; margin-bottom: 15px; }
+  .prompt-form textarea { height: 100px; resize: vertical; }
+  .prompt-form button { font-family: monospace; cursor: pointer; color: #0f0; background: #1a1a1a; border: 1px solid #333; padding: 4px 8px; }
+  .prompt-form button:hover { background: #333; }
+  .actions button { cursor: pointer; color: #0f0; background: transparent; border: 1px solid #333; font-family: monospace; padding: 2px 5px; margin-right: 5px; }
+  .actions button.delete { color: #f00; border-color: #500; }
+  .hidden { display: none; }
+</style>
+</head>
+<body>
+<div class="nav">
+  <a href="/">&larr; Back to Dashboard</a>
+  <a href="/settings">Settings</a>
+</div>
+
+<h1>System Prompts Database</h1>
+
+<div class="prompt-form" id="prompt-form-container">
+  <h2 id="form-title">Add New Prompt</h2>
+  <input type="hidden" id="prompt-id">
+  <label>Name: <input type="text" id="prompt-name" placeholder="e.g. Philosopher"></label>
+  <label>Content: <textarea id="prompt-content" placeholder="You are a philosopher..."></textarea></label>
+  <label><input type="checkbox" id="prompt-default"> Is Default (available for random entities)</label><br><br>
+  <button onclick="savePrompt()">Save Prompt</button>
+  <button onclick="resetForm()" style="color:#ccc; border-color:#555;">Cancel</button>
+</div>
+
+<table>
+  <thead>
+    <tr><th>Name</th><th>Content Preview</th><th>Default</th><th>Actions</th></tr>
+  </thead>
+  <tbody id="prompts-list"></tbody>
+</table>
+
+<script>
+const API_BASE = "http://localhost:8000";
+let promptsData = [];
+
+async function loadPrompts() {
+  try {
+    const res = await fetch(`${API_BASE}/system-prompts/`);
+    if (!res.ok) throw new Error(await res.text());
+    promptsData = await res.json();
+    renderPrompts();
+  } catch (e) {
+    alert("Failed to load prompts: " + e.message);
+  }
+}
+
+function renderPrompts() {
+  const tbody = document.getElementById('prompts-list');
+  tbody.innerHTML = '';
+  promptsData.forEach(p => {
+    const tr = document.createElement('tr');
+
+    const tdName = document.createElement('td');
+    tdName.textContent = p.name;
+
+    const tdContent = document.createElement('td');
+    tdContent.textContent = p.content.length > 50 ? p.content.substring(0, 50) + '...' : p.content;
+
+    const tdDefault = document.createElement('td');
+    tdDefault.textContent = p.is_default ? 'Yes' : 'No';
+
+    const tdActions = document.createElement('td');
+    tdActions.className = 'actions';
+
+    const editBtn = document.createElement('button');
+    editBtn.textContent = 'Edit';
+    editBtn.onclick = () => editPrompt(p);
+
+    const delBtn = document.createElement('button');
+    delBtn.className = 'delete';
+    delBtn.textContent = 'Delete';
+    delBtn.onclick = () => deletePrompt(p.id);
+
+    tdActions.appendChild(editBtn);
+    tdActions.appendChild(delBtn);
+
+    tr.appendChild(tdName);
+    tr.appendChild(tdContent);
+    tr.appendChild(tdDefault);
+    tr.appendChild(tdActions);
+
+    tbody.appendChild(tr);
+  });
+}
+
+function editPrompt(p) {
+  document.getElementById('form-title').textContent = "Edit Prompt";
+  document.getElementById('prompt-id').value = p.id;
+  document.getElementById('prompt-name').value = p.name;
+  document.getElementById('prompt-content').value = p.content;
+  document.getElementById('prompt-default').checked = p.is_default;
+  document.getElementById('prompt-name').focus();
+}
+
+function resetForm() {
+  document.getElementById('form-title').textContent = "Add New Prompt";
+  document.getElementById('prompt-id').value = "";
+  document.getElementById('prompt-name').value = "";
+  document.getElementById('prompt-content').value = "";
+  document.getElementById('prompt-default').checked = false;
+}
+
+async function savePrompt() {
+  const id = document.getElementById('prompt-id').value;
+  const name = document.getElementById('prompt-name').value;
+  const content = document.getElementById('prompt-content').value;
+  const is_default = document.getElementById('prompt-default').checked;
+
+  if (!name || !content) {
+    alert("Name and content are required.");
+    return;
+  }
+
+  const payload = { name, content, is_default };
+
+  try {
+    let res;
+    if (id) {
+      res = await fetch(`${API_BASE}/system-prompts/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+    } else {
+      res = await fetch(`${API_BASE}/system-prompts/`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+    }
+
+    if (!res.ok) throw new Error(await res.text());
+    resetForm();
+    loadPrompts();
+  } catch (e) {
+    alert("Failed to save prompt: " + e.message);
+  }
+}
+
+async function deletePrompt(id) {
+  if (!confirm("Are you sure you want to delete this prompt?")) return;
+  try {
+    const res = await fetch(`${API_BASE}/system-prompts/${id}`, { method: "DELETE" });
+    if (!res.ok) throw new Error(await res.text());
+    loadPrompts();
+  } catch (e) {
+    alert("Failed to delete prompt: " + e.message);
+  }
+}
+
+loadPrompts();
+</script>
+</body>
+</html>

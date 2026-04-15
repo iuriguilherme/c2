@@ -13,6 +13,7 @@ from api.routes.openrouter import router as openrouter_router
 from api.routes.lmstudio import router as lmstudio_router
 from api.routes.simulation import router as simulation_router
 from api.routes.simulation import set_redis_client as set_simulation_redis_client
+from api.routes.system_prompts import router as system_prompts_router
 
 logger = logging.getLogger(__name__)
 redis_client = None
@@ -56,6 +57,13 @@ async def lifespan(app: FastAPI):
         redis_client = fakeredis.FakeAsyncRedis()
     set_redis_client(redis_client)
     set_simulation_redis_client(redis_client)
+
+    try:
+        from storage.mongo import init_mongo
+        await init_mongo()
+    except Exception as exc:
+        logger.error("Failed to initialize MongoDB/Beanie: %s", exc)
+
     yield
     if redis_client is not None:
         await redis_client.aclose()
@@ -79,6 +87,7 @@ app.include_router(settings_router)
 app.include_router(openrouter_router)
 app.include_router(lmstudio_router)
 app.include_router(simulation_router)
+app.include_router(system_prompts_router)
 
 
 @app.get("/health")

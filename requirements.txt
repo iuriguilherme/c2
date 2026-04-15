@@ -25,3 +25,5 @@ python-dotenv>=1.0
 
 # Development dependencies (install with: pip install -r requirements.txt -r requirements-dev.txt)
 # See requirements-dev.txt for pytest and testing tools
+motor>=3.6.0
+beanie>=1.26.0
