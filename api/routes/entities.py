@@ -1,5 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException, Path
 from storage.redis import RedisEntityRepository
+from pydantic import BaseModel
+from typing import Optional
+from simulation.randomness import generate_random_seed, get_random_float
+from genetics.models import GeneType, GeneInstance
 
 router = APIRouter(prefix="/entities", tags=["entities"])
 
@@ -16,11 +20,6 @@ def get_redis():
         raise HTTPException(status_code=503, detail="Storage not ready")
     return _redis_client
 
-
-from pydantic import BaseModel, Field
-from typing import Optional
-from simulation.randomness import generate_random_seed, get_random_float
-from genetics.models import GeneType, GeneInstance
 
 class EntityAddRequest(BaseModel):
     brain_size: Optional[float] = None
