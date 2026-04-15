@@ -112,12 +112,15 @@ async def add_entity(
             from neural.pool import NeuronPool
             profile = NeuronProfile.model_validate(profile_data)
             all_neurons = await pool_repo.get_all_neurons()
-            # Build a pool containing only the allowed neurons
+            # Build a pool containing only the allowed neurons.
+            # If none are allowed/resolved, fall back to the default pool by
+            # leaving neuron_pool_override as None.
             allowed_defs = {}
             for nt in profile.allowed_neurons:
                 if nt.value in all_neurons:
                     allowed_defs[nt] = NeuronDefinition.model_validate(all_neurons[nt.value])
-            neuron_pool_override = NeuronPool(allowed_defs)
+            if allowed_defs:
+                neuron_pool_override = NeuronPool(allowed_defs)
             activation_functions = profile.activation_functions
 
     entity = factory.create(
