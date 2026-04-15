@@ -42,6 +42,7 @@
 <body>
 <div class="nav">
   <a href="/settings">Settings &rarr;</a>
+  <a href="/neurons">Neurons &rarr;</a>
   <button onclick="addRandomEntity()">+ Add Random Entity</button>
   <button onclick="toggleConfigPanel()">+ Add Configured Entity</button>
   <button onclick="resetSimulation()" style="color: #f00; border-color: #500;">Reset Simulation</button>
@@ -52,6 +53,11 @@
   <label>Lifespan: <input type="number" id="cfg_life" placeholder="e.g. 100.0" step="1"></label>
   <label>Think Interval: <input type="number" id="cfg_think" placeholder="e.g. 5.0" step="1"></label>
   <label>Reproduction Threshold: <input type="number" id="cfg_repro" placeholder="e.g. 50.0" step="1"></label>
+  <label>Neuron Profile:
+    <select id="cfg_profile">
+      <option value="">(Default Profile)</option>
+    </select>
+  </label>
   <button onclick="submitConfiguredEntity()">Spawn Entity</button>
 </div>
 
@@ -114,17 +120,38 @@ async function addRandomEntity() {
   }
 }
 
+async function loadProfiles() {
+  try {
+    const res = await fetch(`${API_BASE}/neurons/profiles`);
+    if (res.ok) {
+      const profiles = await res.json();
+      const sel = document.getElementById("cfg_profile");
+      profiles.forEach(p => {
+        const opt = document.createElement("option");
+        opt.value = p.id;
+        opt.textContent = p.name;
+        sel.appendChild(opt);
+      });
+    }
+  } catch (e) {
+    console.warn("Failed to load profiles", e);
+  }
+}
+loadProfiles();
+
 async function submitConfiguredEntity() {
   const payload = {};
   const vBrain = document.getElementById('cfg_brain').value;
   const vLife = document.getElementById('cfg_life').value;
   const vThink = document.getElementById('cfg_think').value;
   const vRepro = document.getElementById('cfg_repro').value;
+  const vProfile = document.getElementById('cfg_profile').value;
 
   if (vBrain) payload.brain_size = parseFloat(vBrain);
   if (vLife) payload.lifespan = parseFloat(vLife);
   if (vThink) payload.think_interval = parseFloat(vThink);
   if (vRepro) payload.reproduction_threshold = parseFloat(vRepro);
+  if (vProfile) payload.neuron_profile_id = vProfile;
 
   try {
     const res = await fetch(`${API_BASE}/entities/`, {
