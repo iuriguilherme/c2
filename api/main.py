@@ -11,6 +11,8 @@ from api.routes.ollama import router as ollama_router
 from api.routes.settings import router as settings_router
 from api.routes.openrouter import router as openrouter_router
 from api.routes.lmstudio import router as lmstudio_router
+from api.routes.simulation import router as simulation_router
+from api.routes.simulation import set_redis_client as set_simulation_redis_client
 
 logger = logging.getLogger(__name__)
 redis_client = None
@@ -53,6 +55,7 @@ async def lifespan(app: FastAPI):
         )
         redis_client = fakeredis.FakeAsyncRedis()
     set_redis_client(redis_client)
+    set_simulation_redis_client(redis_client)
     yield
     if redis_client is not None:
         await redis_client.aclose()
@@ -75,6 +78,7 @@ app.include_router(ollama_router)
 app.include_router(settings_router)
 app.include_router(openrouter_router)
 app.include_router(lmstudio_router)
+app.include_router(simulation_router)
 
 
 @app.get("/health")
