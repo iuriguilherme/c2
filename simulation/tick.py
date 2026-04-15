@@ -245,11 +245,14 @@ class TickEngine:
         brain = Brain.from_genome(
             genome, self._neuron_pool, rng=random.Random(hash(data["id"]) % (2**31))
         )
+        base_system_prompt = data.get("base_system_prompt")
+        if not base_system_prompt:
+            base_system_prompt = data.get("system_prompt", "")
         return Entity(
             id=data["id"],
             genome=genome,
             brain=brain,
-            base_system_prompt=data.get("base_system_prompt", data.get("system_prompt", "")),
+            base_system_prompt=base_system_prompt,
             neural_system_prompt=data.get("neural_system_prompt", ""),
             learned_system_prompt=data.get("learned_system_prompt", ""),
             user_prompt=data.get("user_prompt", ""),
