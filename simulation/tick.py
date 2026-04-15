@@ -75,7 +75,7 @@ class TickEngine:
             )
             for (parent_id, _), result in zip(spawn_work, results):
                 if isinstance(result, Exception):
-                    logger.exception(
+                    logger.error(
                         "Failed to spawn offspring for parent %s on tick %s",
                         parent_id,
                         self.current_tick,
