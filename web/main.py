@@ -46,6 +46,11 @@ async def index():
     return await render_template("index.html")
 
 
+@app.route("/settings")
+async def settings_page():
+    return await render_template("settings.html")
+
+
 @app.route("/api/state")
 async def state():
     if not _redis:
