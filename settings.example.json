@@ -16,6 +16,7 @@
   "void_height": 1000.0,
   "initial_entities": 5,
   "tick_interval_sec": 2.0,
+  "spawn_rate_cap_percent": 5.0,
   "allowed_providers": [
     "ollama",
     "openrouter",

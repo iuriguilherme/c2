@@ -136,6 +136,71 @@ async def test_divide_action_calls_spawn_offspring():
     await redis.aclose()
 
 
+# ── Test 1.5: spawn_rate_cap limits reproduction ──────────────────────────────
+
+async def test_spawn_rate_cap():
+    """Verify that mass reproduction respects the spawn rate cap and queues remainders."""
+    gene_pool = GenePool.load()
+    neuron_pool = NeuronPool.load()
+
+    redis, repo, stream, void = _make_engine_fixtures()
+
+    # Create 100 living entities to get a cap of 5 (5% of 100)
+    for i in range(100):
+        e = _make_entity_with_genome(f"e-pop-{i}", gene_pool, neuron_pool, lifespan=100.0)
+        e.position_x = 500.0
+        e.position_y = 500.0
+        # 10 entities want to divide
+        if i < 10:
+            e.cached_action = '{"action": {"type": "divide", "parameters": {}}}'
+            e.cached_action_tick = 0
+        await repo.save(f"e-pop-{i}", e.to_storage_dict())
+        void.set_position(f"e-pop-{i}", Position(500.0, 500.0))
+
+    mock_repro = MagicMock(spec=ReproductionHandler)
+    async def _fake_spawn(parent, tick, rng=None):
+        return parent
+    mock_repro.spawn_offspring = _fake_spawn
+
+    called = []
+    original = mock_repro.spawn_offspring
+    async def _tracking_spawn(parent, tick, rng=None):
+        called.append(parent.id)
+        return await original(parent, tick, rng=rng)
+    mock_repro.spawn_offspring = _tracking_spawn
+
+    engine = TickEngine(
+        repo=repo,
+        stream=stream,
+        void=void,
+        model_pool=_silent_mock_pool(),
+        reproduction_handler=mock_repro,
+        spawn_rate_cap_percent=5.0,
+    )
+
+    # Tick 1: 10 divide actions execute. 5% cap on 100 entities = 5 spawns allowed.
+    await engine.tick(tick=1)
+    await asyncio.sleep(0)
+
+    assert len(called) == 5, f"Expected exactly 5 spawns due to cap, got {len(called)}"
+    assert len(engine._spawn_queue) == 5, f"Expected 5 remaining entities in queue, got {len(engine._spawn_queue)}"
+
+    # Check they were removed from the queue
+    for eid in called:
+        assert not any(e.id == eid for e in engine._spawn_queue)
+
+    called.clear()
+
+    # Tick 2: 0 new divides. Queue processes remaining 5.
+    await engine.tick(tick=2)
+    await asyncio.sleep(0)
+
+    assert len(called) == 5, f"Expected exactly 5 spawns due to cap on tick 2, got {len(called)}"
+    assert len(engine._spawn_queue) == 0, f"Expected queue to be empty, got {len(engine._spawn_queue)}"
+
+    await redis.aclose()
+
+
 # ── Test 2: dead entity removed from void after tick ─────────────────────────
 
 

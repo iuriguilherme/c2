@@ -60,6 +60,7 @@ async def main() -> None:
     void_h = float(os.environ.get("VOID_HEIGHT", settings.get("void_height", 1000.0)))
     n_entities = int(os.environ.get("INITIAL_ENTITIES", settings.get("initial_entities", 5)))
     tick_interval = float(os.environ.get("TICK_INTERVAL_SEC", settings.get("tick_interval_sec", 2.0)))
+    spawn_rate_cap_percent = float(os.environ.get("SPAWN_RATE_CAP_PERCENT", settings.get("spawn_rate_cap_percent", 5.0)))
     ollama_base_url = os.environ.get("OLLAMA_BASE_URL", settings.get("ollama_base_url", "http://localhost:11434"))
     lmstudio_base_url = os.environ.get("LMSTUDIO_BASE_URL", settings.get("lmstudio_base_url", "http://localhost:1234"))
     allowed_providers = settings.get("allowed_providers", ["ollama", "openrouter", "lmstudio", "anthropic"])
@@ -130,6 +131,7 @@ async def main() -> None:
         model_pool=model_pool,
         neuron_pool=neuron_pool,
         reproduction_handler=reproduction_handler,
+        spawn_rate_cap_percent=spawn_rate_cap_percent,
     )
 
     rng = random.Random()

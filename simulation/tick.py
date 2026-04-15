@@ -23,6 +23,7 @@ class TickEngine:
         model_pool: ModelPool,
         neuron_pool: NeuronPool | None = None,
         reproduction_handler=None,
+        spawn_rate_cap_percent: float = 5.0,
     ) -> None:
         self._repo = repo
         self._stream = stream
@@ -30,6 +31,8 @@ class TickEngine:
         self._model_pool = model_pool
         self._neuron_pool = neuron_pool or NeuronPool.load()
         self._reproduction_handler = reproduction_handler
+        self._spawn_rate_cap_percent = spawn_rate_cap_percent
+        self._spawn_queue: list[Entity] = []
         self._archive = EntityArchive(repo)
         self.current_tick = 0
 
@@ -40,6 +43,22 @@ class TickEngine:
         # Process all living entities concurrently
         tasks = [self._process_entity(eid, tick) for eid in entity_ids]
         await asyncio.gather(*tasks, return_exceptions=True)
+
+        # Process spawn queue governed by cap
+        max_spawns = max(1, int(len(entity_ids) * (self._spawn_rate_cap_percent / 100.0)))
+        spawn_tasks = []
+        while self._spawn_queue and len(spawn_tasks) < max_spawns:
+            parent = self._spawn_queue.pop(0)
+            if self._reproduction_handler is not None:
+                spawn_tasks.append(
+                    asyncio.create_task(
+                        self._reproduction_handler.spawn_offspring(parent, tick=self.current_tick)
+                    )
+                )
+
+        if spawn_tasks:
+            # Let the spawned tasks start executing
+            await asyncio.sleep(0)
 
         self._void.age_messages()
         await self._stream.publish_tick(tick=tick, entity_count=len(entity_ids))
@@ -66,6 +85,9 @@ class TickEngine:
         # Execute cached action from previous tick
         if entity.cached_action and entity.cached_action_tick >= 0:
             await self._execute_action(entity, entity.cached_action)
+            # Clear the cached action so it only executes once
+            entity.cached_action = ""
+            entity.cached_action_tick = -1
 
         # Decide whether to think this tick
         if entity.should_think(tick):
@@ -143,10 +165,10 @@ class TickEngine:
             self._void.broadcast(entity.id, message=message, radius=radius)
         elif action.type == "divide":
             if self._reproduction_handler is not None:
-                logger.debug("Entity %s triggered divide — spawning offspring", entity.id)
-                asyncio.create_task(
-                    self._reproduction_handler.spawn_offspring(entity, tick=self.current_tick)
-                )
+                logger.debug("Entity %s triggered divide — queuing for offspring spawn", entity.id)
+                # Check to avoid duplicate queuing if already queued
+                if not any(e.id == entity.id for e in self._spawn_queue):
+                    self._spawn_queue.append(entity)
 
     def _load_entity(self, data: dict) -> Entity:
         genome = Genome.model_validate_json(data["genome"])
