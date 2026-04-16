@@ -80,8 +80,9 @@ async def lifespan(app: FastAPI):
     try:
         from storage.mongo import init_mongo
         await init_mongo()
-    except Exception as exc:
-        logger.error("Failed to initialize MongoDB/Beanie: %s", exc)
+    except Exception:
+        logger.exception("Failed to initialize MongoDB/Beanie during startup")
+        raise
 
     yield
     if redis_client is not None:
