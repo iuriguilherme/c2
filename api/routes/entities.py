@@ -108,33 +108,43 @@ async def add_entity(
 
     entity_id = f"entity-manual-{int(time.time())}-{r.randint(1000, 9999)}"
 
+    def _wrap_system_prompt(prompt_text: str) -> str:
+        if "Capability Manifest" in prompt_text:
+            return prompt_text
+        return (
+            f"{prompt_text}\n\n"
+            f"You exist in a void simulation. Each tick you receive a Capability Manifest "
+            f"describing what you can perceive and what actions are available to you. "
+            f"Respond with valid JSON: "
+            '{"action": {"type": "<action_type>", "parameters": {...}}, '
+            '"user_prompt_update": "<optional reflection>"}'
+        )
+
+    def _deterministic_fallback_system_prompt() -> str:
+        return _wrap_system_prompt(
+            "You are an autonomous entity in a void simulation. Use the information available "
+            "to you to choose actions that help you survive, explore, and adapt."
+        )
+
     sys_prompt = req.system_prompt or ""
     if sys_prompt:
-        # Wrap it in the instruction template if it isn't already
-        if "Capability Manifest" not in sys_prompt:
-            sys_prompt = (
-                f"{sys_prompt}\n\n"
-                f"You exist in a void simulation. Each tick you receive a Capability Manifest "
-                f"describing what you can perceive and what actions are available to you. "
-                f"Respond with valid JSON: "
-                '{"action": {"type": "<action_type>", "parameters": {...}}, '
-                '"user_prompt_update": "<optional reflection>"}'
-            )
+        sys_prompt = _wrap_system_prompt(sys_prompt)
 
-    # If not provided, fetch a default one to emulate engine behavior
+    # If not provided, fetch a default one to emulate engine behavior.
+    # Fall back to a deterministic built-in prompt if Mongo/Beanie is unavailable.
     if not sys_prompt:
-        from storage.mongo import SystemPrompt
-        default_prompts = await SystemPrompt.find({"is_default": True}).to_list()
+        default_prompts = []
+        try:
+            from storage.mongo import SystemPrompt
+            default_prompts = await SystemPrompt.find({"is_default": True}).to_list()
+        except Exception:
+            default_prompts = []
+
         if default_prompts:
             p = r.choice(default_prompts)
-            sys_prompt = (
-                f"{p.content}\n\n"
-                f"You exist in a void simulation. Each tick you receive a Capability Manifest "
-                f"describing what you can perceive and what actions are available to you. "
-                f"Respond with valid JSON: "
-                '{"action": {"type": "<action_type>", "parameters": {...}}, '
-                '"user_prompt_update": "<optional reflection>"}'
-            )
+            sys_prompt = _wrap_system_prompt(p.content)
+        else:
+            sys_prompt = _deterministic_fallback_system_prompt()
 
     neuron_pool_override = None
     activation_functions = None
