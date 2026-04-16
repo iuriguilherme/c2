@@ -58,5 +58,15 @@
     "mutation_rate": 0.15,
     "mutation_std": 20.0,
     "dominance_default": 0.5
+  },
+  {
+    "gene_type": "cognitive_clarity",
+    "description": "Determines how clearly neural network state is presented to the LLM (0=chaotic text, 1=clean structured json)",
+    "min_value": 0.0,
+    "max_value": 1.0,
+    "default_value": 0.8,
+    "mutation_rate": 0.15,
+    "mutation_std": 0.1,
+    "dominance_default": 0.5
   }
 ]

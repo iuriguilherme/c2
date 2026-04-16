@@ -30,6 +30,7 @@ class EntityAddRequest(BaseModel):
     provider: Optional[str] = None
     model: Optional[str] = None
     system_prompt: Optional[str] = None
+    neuron_profile_id: Optional[str] = None
 
 
 @router.post("/")
@@ -135,12 +136,34 @@ async def add_entity(
                 '"user_prompt_update": "<optional reflection>"}'
             )
 
+    neuron_pool_override = None
+    activation_functions = None
+    if req.neuron_profile_id:
+        from storage.redis import RedisPoolRepository
+        pool_repo = RedisPoolRepository(redis)
+        profile_data = await pool_repo.get_neuron_profile(req.neuron_profile_id)
+        if profile_data:
+            from neural.models import NeuronProfile, NeuronType, NeuronDefinition
+            from neural.pool import NeuronPool
+            profile = NeuronProfile.model_validate(profile_data)
+            all_neurons = await pool_repo.get_all_neurons()
+            # Build a pool containing only the allowed neurons
+            allowed_defs = {}
+            for nt in profile.allowed_neurons:
+                if nt.value in all_neurons:
+                    allowed_defs[nt] = NeuronDefinition.model_validate(all_neurons[nt.value])
+            neuron_pool_override = NeuronPool(allowed_defs)
+            activation_functions = profile.activation_functions
+
     entity = factory.create(
         entity_id=entity_id,
         genome=genome,
         model_assignment=assignment,
         rng=r,
         system_prompt=sys_prompt,
+        neuron_pool_override=neuron_pool_override,
+        activation_functions=activation_functions,
+        neuron_profile_id=req.neuron_profile_id,
     )
 
     void_w = float(os.environ.get("VOID_WIDTH", settings.get("void_width", 1000.0)))

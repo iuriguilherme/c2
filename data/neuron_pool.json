@@ -34,5 +34,11 @@
     "name": "memory_cell",
     "description": "Short-term state across ticks (not persisted to user prompt)",
     "category": "interneuron"
+  },
+  {
+    "neuron_type": "cortex_input_receiver",
+    "name": "cortex_input_receiver",
+    "description": "Receives direct state instructions from the LLM core to influence the neural network",
+    "category": "sensory"
   }
 ]

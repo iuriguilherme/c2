@@ -17,7 +17,7 @@ def test_genome_contains_all_v1_genes():
         for gt in GeneType
     }
     genome = Genome(genes=genes)
-    assert len(genome.genes) == 6  # V1 has 6 gene types
+    assert len(genome.genes) == 7  # V1 has 7 gene types
 
 
 def test_gene_definition_validation():
@@ -56,7 +56,7 @@ from genetics.reproduction import reproduce
 
 def test_gene_pool_loads_all_definitions():
     pool = GenePool.load()
-    assert len(pool.definitions) == 6
+    assert len(pool.definitions) == 7
     assert GeneType.LIFESPAN in pool.definitions
 
 

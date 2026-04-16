@@ -77,8 +77,32 @@ async def main() -> None:
     stream = RedisTickStream(redis)
     void = VoidEnvironment(width=void_w, height=void_h)
 
-    gene_pool = GenePool.load()
-    neuron_pool = NeuronPool.load()
+    from storage.redis import RedisPoolRepository
+    from genetics.models import GeneType, GeneDefinition
+    from neural.models import NeuronType, NeuronDefinition
+    pool_repo = RedisPoolRepository(redis)
+
+    genes_data = await pool_repo.get_all_genes()
+    if not genes_data:
+        gene_pool = GenePool.load()
+        for gene in gene_pool.definitions.values():
+            await pool_repo.set_gene(gene)
+    else:
+        gene_pool = GenePool({
+            GeneType(k): GeneDefinition.model_validate(v)
+            for k, v in genes_data.items()
+        })
+
+    neurons_data = await pool_repo.get_all_neurons()
+    if not neurons_data:
+        neuron_pool = NeuronPool.load()
+        for neuron in neuron_pool.definitions.values():
+            await pool_repo.set_neuron(neuron)
+    else:
+        neuron_pool = NeuronPool({
+            NeuronType(k): NeuronDefinition.model_validate(v)
+            for k, v in neurons_data.items()
+        })
 
     all_providers = [
         OllamaProvider(base_url=ollama_base_url),
