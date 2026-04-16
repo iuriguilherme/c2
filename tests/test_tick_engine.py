@@ -108,9 +108,12 @@ async def test_divide_action_calls_spawn_offspring():
 
     mock_repro.spawn_offspring = _fake_spawn
 
+    from storage.redis import RedisInteractionStream
+    interaction_stream = RedisInteractionStream(redis)
     engine = TickEngine(
         repo=repo,
         stream=stream,
+        interaction_stream=interaction_stream,
         void=void,
         model_pool=_silent_mock_pool(),
         reproduction_handler=mock_repro,
@@ -170,9 +173,12 @@ async def test_spawn_rate_cap():
         return await original(parent, tick, rng=rng)
     mock_repro.spawn_offspring = _tracking_spawn
 
+    from storage.redis import RedisInteractionStream
+    interaction_stream = RedisInteractionStream(redis)
     engine = TickEngine(
         repo=repo,
         stream=stream,
+        interaction_stream=interaction_stream,
         void=void,
         model_pool=_silent_mock_pool(),
         reproduction_handler=mock_repro,
@@ -229,9 +235,12 @@ async def test_dead_entity_removed_from_void():
     await repo.save("e-obs", observer.to_storage_dict())
     void.set_position("e-obs", Position(110.0, 100.0))
 
+    from storage.redis import RedisInteractionStream
+    interaction_stream = RedisInteractionStream(redis)
     engine = TickEngine(
         repo=repo,
         stream=stream,
+        interaction_stream=interaction_stream,
         void=void,
         model_pool=_silent_mock_pool(),
     )
@@ -269,9 +278,12 @@ async def test_divide_action_no_handler_no_exception():
     await repo.save("e-nodiv", entity.to_storage_dict())
     void.set_position("e-nodiv", Position(500.0, 500.0))
 
+    from storage.redis import RedisInteractionStream
+    interaction_stream = RedisInteractionStream(redis)
     engine = TickEngine(
         repo=repo,
         stream=stream,
+        interaction_stream=interaction_stream,
         void=void,
         model_pool=_silent_mock_pool(),
         reproduction_handler=None,  # explicitly no handler
@@ -325,9 +337,12 @@ async def test_integration_two_generation_via_tick():
         model_pool=model_pool,
     )
 
+    from storage.redis import RedisInteractionStream
+    interaction_stream = RedisInteractionStream(redis)
     engine = TickEngine(
         repo=repo,
         stream=stream,
+        interaction_stream=interaction_stream,
         void=void,
         model_pool=model_pool,
         reproduction_handler=reproduction_handler,

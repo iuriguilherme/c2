@@ -63,7 +63,8 @@ async def state():
     repo = RedisEntityRepository(_redis)
     stream = RedisTickStream(_redis)
     living_ids = await repo.list_living()
-    raw_entities = await repo.load_many(living_ids)
+    fields = ["id", "age", "position_x", "position_y", "model", "provider", "alive"]
+    raw_entities = await repo.load_many_partial(living_ids, fields)
     entities = [
         {
             "id": data["id"],

@@ -20,6 +20,9 @@ class Entity:
     last_think_tick: int = 0
     cached_action: str = ""
     cached_action_tick: int = -1
+    last_manifest: str = ""
+    last_activations: str = ""
+    last_llm_exchange: str = ""
 
     def should_think(self, current_tick: int) -> bool:
         return (current_tick - self.last_think_tick) >= self.think_interval
@@ -40,4 +43,7 @@ class Entity:
             "last_think_tick": str(self.last_think_tick),
             "cached_action": self.cached_action,
             "cached_action_tick": str(self.cached_action_tick),
+            "last_manifest": self.last_manifest,
+            "last_activations": self.last_activations,
+            "last_llm_exchange": self.last_llm_exchange,
         }

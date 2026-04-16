@@ -25,7 +25,7 @@
   .layout { display: flex; gap: 20px; }
   .main-content { flex: 1; }
   .side-panel {
-    width: 350px;
+    width: 400px;
     border-left: 1px solid #333;
     padding-left: 20px;
     display: none;
@@ -34,12 +34,63 @@
   .side-panel h2 { font-size: 1.1rem; border-bottom: 1px solid #333; padding-bottom: 5px; }
   .side-panel .detail-block { margin-bottom: 10px; }
   .side-panel .detail-block strong { color: #888; display: block; }
-  .side-panel pre { background: #111; padding: 10px; border: 1px solid #333; overflow-x: auto; font-size: 0.85rem; margin-top: 4px; }
+  .side-panel pre { background: #111; padding: 10px; border: 1px solid #333; overflow-x: auto; font-size: 0.8rem; margin-top: 4px; white-space: pre-wrap; word-break: break-all; max-height: 400px; }
   .side-panel textarea { width: 100%; box-sizing: border-box; background: #111; color: #ccc; border: 1px solid #333; padding: 10px; font-family: monospace; font-size: 0.85rem; margin-top: 4px; resize: vertical; min-height: 80px; }
   .side-panel button.save-btn { font-family: monospace; font-size: 0.85rem; cursor: pointer; color: #0f0; border: 1px solid #333; padding: 4px 8px; background: #1a1a1a; margin-top: 4px; }
   .side-panel button.save-btn:hover { background: #333; }
   tr { cursor: pointer; }
   tr:hover { background: #111; }
+
+  /* Tabs */
+  .tabs { display: flex; gap: 5px; margin-bottom: 15px; border-bottom: 1px solid #333; padding-bottom: 5px; margin-top: 15px; }
+  .tab-btn { background: #111; border: 1px solid #333; color: #888; padding: 5px 10px; cursor: pointer; font-family: monospace; font-size: 0.8rem; }
+  .tab-btn.active { color: #0f0; background: #222; border-color: #555; }
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+
+  /* Log Panel */
+  .log-panel {
+    margin-top: 30px;
+    border: 1px solid #333;
+    background: #050505;
+    display: flex;
+    flex-direction: column;
+    height: 350px;
+  }
+  .log-header {
+    background: #111;
+    padding: 10px 15px;
+    border-bottom: 1px solid #333;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .log-header h2 { margin: 0; font-size: 1rem; color: #888; }
+  .log-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 12px;
+    font-size: 0.85rem;
+    display: flex;
+    flex-direction: column-reverse;
+  }
+  .log-entry { margin-bottom: 6px; border-bottom: 1px solid #151515; padding-bottom: 4px; line-height: 1.4; }
+  .log-entry .time { color: #555; margin-right: 10px; font-size: 0.75rem; }
+  .log-entry .type { margin-right: 10px; font-weight: bold; width: 75px; display: inline-block; font-size: 0.75rem; text-align: center; border-radius: 2px; padding: 1px 3px; }
+  .log-entry .source { color: #f0f; cursor: pointer; margin-right: 10px; font-weight: bold; }
+  .log-entry .source:hover { text-decoration: underline; }
+  .log-entry .msg { color: #ccc; }
+  
+  .log-entry.birth .type { background: #040; color: #0f0; }
+  .log-entry.death .type { background: #400; color: #f00; }
+  .log-entry.signal .type { background: #440; color: #ff0; }
+  .log-entry.movement .type { background: #222; color: #aaa; }
+
+  .log-controls { display: flex; gap: 10px; align-items: center; }
+  .log-controls button { background: #1a1a1a; color: #0f0; border: 1px solid #333; padding: 4px 10px; cursor: pointer; font-size: 0.8rem; font-family: monospace; }
+  .log-controls button:hover { background: #333; }
+  .log-controls button.active { background: #0f0; color: #000; }
+  .log-controls input { background: #000; color: #0f0; border: 1px solid #333; padding: 4px 8px; font-size: 0.8rem; font-family: monospace; width: 150px; }
 </style>
 </head>
 <body>
@@ -76,6 +127,10 @@
       <label>Think Interval: <input type="number" id="cfg_think" placeholder="e.g. 5.0" step="1"></label><br>
       <label>Reproduction Threshold: <input type="number" id="cfg_repro" placeholder="e.g. 50.0" step="1"></label><br>
     </div>
+    <div style="border-left: 1px solid #333; padding-left: 20px;">
+      <label>Available Neurons in Pool:</label>
+      <ul id="cfg_neurons_list" style="font-size: 0.8rem; color: #888; margin-top: 5px; padding-left: 20px;"></ul>
+    </div>
   </div>
   <button onclick="submitConfiguredEntity()" style="margin-top:10px;">Spawn Entity</button>
 </div>
@@ -91,16 +146,44 @@
       </thead>
       <tbody id="entities"></tbody>
     </table>
+
+    <div class="log-panel">
+      <div class="log-header">
+        <h2>Global Interaction Log</h2>
+        <div class="log-controls">
+          <input type="text" id="log-filter" placeholder="Filter by ID/Msg..." title="Filter interactions">
+          <button id="pause-log-btn" onclick="toggleLogPause()">Pause</button>
+          <button onclick="clearLog()">Clear</button>
+        </div>
+      </div>
+      <div class="log-body" id="interaction-log" aria-live="polite">
+        <div class="log-entry"><span class="msg">Waiting for interactions...</span></div>
+      </div>
+    </div>
   </div>
   <div class="side-panel" id="side-panel">
     <h2>Entity Details</h2>
     <button onclick="closeSidePanel()" style="margin-bottom: 15px;">Close Panel</button>
     <button id="destroy-btn" style="color: #f00; border-color: #500; margin-bottom: 15px; margin-left: 10px; display: none;">Destroy Entity</button>
-    <div id="side-panel-content">Select an entity to view details.</div>
+    
+    <div id="side-panel-content">
+        Select an entity to view details.
+    </div>
   </div>
 </div>
 
 <script>
+// ── State ─────────────────────────────────────────────────────────
+let logPaused = false;
+let lastInteractionId = null;
+let currentLogFilter = "";
+let allInteractions = [];
+
+document.getElementById('log-filter').addEventListener('input', (e) => {
+    currentLogFilter = e.target.value.toLowerCase().trim();
+    renderLog();
+});
+
 // ── Actions ────────────────────────────────────────────────────────
 
 const API_BASE = "http://localhost:8000";
@@ -113,10 +196,100 @@ async function resetSimulation() {
     const res = await fetch(`${API_BASE}/simulation/reset`, { method: "POST" });
     if (!res.ok) throw new Error(await res.text());
     alert("Simulation reset signal sent.");
+    clearLog();
     refresh();
   } catch(e) {
     alert("Failed to reset: " + e.message);
   }
+}
+
+function toggleLogPause() {
+    logPaused = !logPaused;
+    const btn = document.getElementById('pause-log-btn');
+    btn.textContent = logPaused ? "Resume" : "Pause";
+    btn.classList.toggle('active', logPaused);
+}
+
+function clearLog() {
+    allInteractions = [];
+    lastInteractionId = null;
+    renderLog();
+}
+
+async function pollInteractions() {
+    if (logPaused) return;
+    try {
+        const res = await fetch(`${API_BASE}/simulation/interactions?count=50`);
+        if (!res.ok) return;
+        const data = await res.json();
+        
+        if (data.length === 0) return;
+
+        // data is from Redis XREVRANGE, so it's newest to oldest. 
+        // We want to detect new ones since lastInteractionId.
+        const newOnes = [];
+        if (lastInteractionId === null) {
+            newOnes.push(...data);
+        } else {
+            for (const item of data) {
+                if (item.id === lastInteractionId) break;
+                newOnes.push(item);
+            }
+        }
+        
+        if (newOnes.length > 0) {
+            // Prepend new ones to our internal list (since data is newest first)
+            allInteractions = [...newOnes, ...allInteractions].slice(0, 200);
+            lastInteractionId = data[0].id;
+            renderLog();
+        }
+    } catch(e) {
+        console.error("Failed to poll interactions", e);
+    }
+}
+
+function renderLog() {
+    const logBody = document.getElementById('interaction-log');
+    logBody.innerHTML = '';
+    
+    const filtered = currentLogFilter 
+        ? allInteractions.filter(i => 
+            i.source_id.toLowerCase().includes(currentLogFilter) || 
+            i.message.toLowerCase().includes(currentLogFilter) ||
+            i.type.toLowerCase().includes(currentLogFilter)
+          )
+        : allInteractions;
+
+    if (filtered.length === 0) {
+        logBody.innerHTML = '<div class="log-entry"><span class="msg">No matching interactions...</span></div>';
+        return;
+    }
+
+    // allInteractions is newest-first. We append them.
+    filtered.forEach(i => {
+        const entry = document.createElement('div');
+        entry.className = `log-entry ${i.type}`;
+        
+        // Extract timestamp from Redis ID (e.g. 1713212345678-0)
+        const timestamp = i.id.split('-')[0];
+        const date = new Date(parseInt(timestamp));
+        const timeStr = date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', second:'2-digit'});
+
+        entry.innerHTML = `
+            <span class="time">[${timeStr}]</span>
+            <span class="type">${i.type.toUpperCase()}</span>
+            <span class="source" onclick="setLogFilter('${i.source_id}')">${i.source_id}</span>
+            <span class="msg">${i.message}</span>
+        `;
+        logBody.appendChild(entry);
+    });
+}
+
+function setLogFilter(id) {
+    const filterInput = document.getElementById('log-filter');
+    filterInput.value = id;
+    currentLogFilter = id.toLowerCase();
+    renderLog();
 }
 
 function toggleConfigPanel() {
@@ -159,6 +332,18 @@ async function loadConfigOptions() {
       spSel.innerHTML = '<option value="">(Random)</option>';
       prompts.forEach(p => {
         spSel.innerHTML += `<option value="${p.content}">${p.name}</option>`;
+      });
+    }
+
+    const nRes = await fetch(`${API_BASE}/neurons/`);
+    if (nRes.ok) {
+      const neurons = await nRes.json();
+      const nList = document.getElementById('cfg_neurons_list');
+      nList.innerHTML = '';
+      neurons.forEach(n => {
+        const li = document.createElement('li');
+        li.textContent = `${n.name} (${n.category})`;
+        nList.appendChild(li);
       });
     }
   } catch (e) {
@@ -243,76 +428,87 @@ async function loadEntityDetails(id) {
     if (!res.ok) throw new Error(await res.text());
     const data = await res.json();
 
-    let genomeHtml = "";
+    content.innerHTML = `
+        <div class="detail-block"><strong>ID</strong><span>${data.id}</span></div>
+        <div class="detail-block"><strong>Status</strong><span>${data.alive === "True" ? "Alive" : "Dead"}</span></div>
+        <div class="detail-block"><strong>Age</strong><span>${data.age}</span></div>
+        <div class="detail-block"><strong>Position</strong><span>X: ${parseFloat(data.position_x).toFixed(1)} Y: ${parseFloat(data.position_y).toFixed(1)}</span></div>
+        <div class="detail-block"><strong>Provider / Model</strong><span>${data.provider} / ${data.model}</span></div>
+        
+        <div class="tabs">
+            <button id="btn-tab-prompts" class="tab-btn active" onclick="showTab('tab-prompts')">Prompts</button>
+            <button id="btn-tab-neural" class="tab-btn" onclick="showTab('tab-neural')">Neural</button>
+            <button id="btn-tab-exchange" class="tab-btn" onclick="showTab('tab-exchange')">Exchange</button>
+            <button id="btn-tab-genetics" class="tab-btn" onclick="showTab('tab-genetics')">Genetics</button>
+        </div>
+
+        <div id="tab-prompts" class="tab-content active">
+            <div class="detail-block"><strong>System Prompt</strong><pre>${data.system_prompt}</pre></div>
+            <div class="detail-block">
+                <strong>User Prompt (Reflection)</strong>
+                <textarea id="edit_user_prompt">${data.user_prompt}</textarea>
+                <button class="save-btn" onclick="saveUserPrompt('${data.id}')">Save User Prompt</button>
+            </div>
+        </div>
+
+        <div id="tab-neural" class="tab-content">
+            <div class="detail-block"><strong>Capability Manifest</strong><pre id="neural-manifest">Loading...</pre></div>
+            <div class="detail-block"><strong>Neuron Activations</strong><pre id="neural-activations">Loading...</pre></div>
+        </div>
+
+        <div id="tab-exchange" class="tab-content">
+            <div class="detail-block"><strong>Last LLM Exchange</strong><pre id="llm-exchange">Loading...</pre></div>
+        </div>
+
+        <div id="tab-genetics" class="tab-content">
+            <div class="detail-block"><strong>Genome</strong><pre id="genome-view">Loading...</pre></div>
+        </div>
+    `;
+
+    // Fill detailed views
     try {
-        const genomeObj = JSON.parse(data.genome);
-        genomeHtml = JSON.stringify(genomeObj, null, 2);
-    } catch(e) {
-        genomeHtml = data.genome;
+        document.getElementById('genome-view').textContent = JSON.stringify(JSON.parse(data.genome), null, 2);
+    } catch(e) { document.getElementById('genome-view').textContent = data.genome; }
+
+    if (data.last_manifest) {
+        try {
+            document.getElementById('neural-manifest').textContent = JSON.stringify(JSON.parse(data.last_manifest), null, 2);
+        } catch(e) { document.getElementById('neural-manifest').textContent = data.last_manifest; }
+    } else {
+        document.getElementById('neural-manifest').textContent = "No manifest data yet.";
     }
 
-    let actionHtml = "";
-    try {
-        if(data.cached_action) {
-            const actionObj = JSON.parse(data.cached_action);
-            actionHtml = JSON.stringify(actionObj, null, 2);
-        } else {
-            actionHtml = "No action cached";
-        }
-    } catch(e) {
-        actionHtml = data.cached_action;
+    if (data.last_activations) {
+        try {
+            const acts = JSON.parse(data.last_activations);
+            document.getElementById('neural-activations').textContent = acts.map(a => a.toFixed(3)).join(", ");
+        } catch(e) { document.getElementById('neural-activations').textContent = data.last_activations; }
+    } else {
+        document.getElementById('neural-activations').textContent = "No activation data yet.";
     }
 
-    content.innerHTML = '';
+    if (data.last_llm_exchange) {
+        try {
+            document.getElementById('llm-exchange').textContent = JSON.stringify(JSON.parse(data.last_llm_exchange), null, 2);
+        } catch(e) { document.getElementById('llm-exchange').textContent = data.last_llm_exchange; }
+    } else {
+        document.getElementById('llm-exchange').textContent = "No LLM exchange data yet.";
+    }
 
-    const fields = [
-      {label: "ID", value: data.id},
-      {label: "Status", value: data.alive === "True" ? "Alive" : "Dead"},
-      {label: "Age", value: data.age},
-      {label: "Position", value: `X: ${parseFloat(data.position_x).toFixed(1)} Y: ${parseFloat(data.position_y).toFixed(1)}`},
-      {label: "Provider / Model", value: `${data.provider} / ${data.model}`},
-      {label: "System Prompt", value: data.system_prompt, pre: true},
-      {label: "User Prompt", value: data.user_prompt, pre: true, is_user_prompt: true},
-      {label: "Cached Action", value: actionHtml, pre: true},
-      {label: "Genetics", value: genomeHtml, pre: true},
-    ];
-
-    fields.forEach(f => {
-      const block = document.createElement("div");
-      block.className = "detail-block";
-      const strong = document.createElement("strong");
-      strong.textContent = f.label;
-      block.appendChild(strong);
-
-      if (f.is_user_prompt) {
-          const ta = document.createElement("textarea");
-          ta.id = "edit_user_prompt";
-          ta.value = f.value;
-          block.appendChild(ta);
-
-          const btn = document.createElement("button");
-          btn.className = "save-btn";
-          btn.textContent = "Save User Prompt";
-          btn.onclick = () => saveUserPrompt(data.id);
-          block.appendChild(btn);
-      } else if (f.pre) {
-          const pre = document.createElement("pre");
-          pre.textContent = f.value;
-          block.appendChild(pre);
-      } else {
-          const span = document.createElement("span");
-          span.textContent = f.value;
-          block.appendChild(span);
-      }
-      content.appendChild(block);
-    });
-
-    // Show destroy button and set up its action
+    // Show destroy button
     destroyBtn.style.display = "inline-block";
     destroyBtn.onclick = () => destroyEntity(data.id);
   } catch (e) {
     content.textContent = "Failed to load details: " + e.message;
   }
+}
+
+function showTab(tabId) {
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    
+    document.getElementById(tabId).classList.add('active');
+    document.getElementById('btn-' + tabId).classList.add('active');
 }
 
 async function destroyEntity(id) {
@@ -379,7 +575,9 @@ async function refresh() {
 
 // ── Startup ────────────────────────────────────────────────────────
 refresh();
+pollInteractions();
 setInterval(refresh, 2000);
+setInterval(pollInteractions, 3000);
 </script>
 </body>
 </html>

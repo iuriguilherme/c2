@@ -92,7 +92,16 @@ async def test_full_simulation_two_entities_two_providers():
         await repo.save(e.id, e.to_storage_dict())
         void.set_position(e.id, Position(250.0, 250.0))
 
-    engine = TickEngine(repo=repo, stream=stream, void=void, model_pool=model_pool)
+    from storage.redis import RedisInteractionStream
+    interaction_stream = RedisInteractionStream(redis)
+    engine = TickEngine(
+        repo=repo,
+        stream=stream,
+        interaction_stream=interaction_stream,
+        void=void,
+        model_pool=model_pool,
+    )
+
     repro_handler = ReproductionHandler(
         repo=repo,
         void=void,
@@ -198,7 +207,15 @@ async def test_two_providers_called_in_same_simulation():
         await repo.save(e.id, e.to_storage_dict())
         void.set_position(e.id, Position(100.0, 100.0))
 
-    engine = TickEngine(repo=repo, stream=stream, void=void, model_pool=model_pool)
+    from storage.redis import RedisInteractionStream
+    interaction_stream = RedisInteractionStream(redis)
+    engine = TickEngine(
+        repo=repo,
+        stream=stream,
+        interaction_stream=interaction_stream,
+        void=void,
+        model_pool=model_pool,
+    )
     await engine.tick(tick=1)
 
     assert len(ollama_calls) >= 1, "Ollama provider was not called"

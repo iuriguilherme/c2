@@ -73,9 +73,11 @@ async def main() -> None:
         logger.error(f"Failed to initialize MongoDB/Beanie: {exc}")
         raise
 
+    from storage.redis import RedisEntityRepository, RedisTickStream, RedisInteractionStream
     redis = aioredis.from_url(redis_url, decode_responses=False)
     repo = RedisEntityRepository(redis)
     stream = RedisTickStream(redis)
+    interaction_stream = RedisInteractionStream(redis)
     void = VoidEnvironment(width=void_w, height=void_h)
 
     gene_pool = GenePool.load()
@@ -106,6 +108,7 @@ async def main() -> None:
     engine = TickEngine(
         repo=repo,
         stream=stream,
+        interaction_stream=interaction_stream,
         void=void,
         model_pool=model_pool,
         neuron_pool=neuron_pool,

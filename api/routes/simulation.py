@@ -1,7 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException
-from storage.redis import RedisEntityRepository
+from storage.redis import RedisEntityRepository, RedisInteractionStream
 import os
 from pydantic import BaseModel
+from typing import List
 
 router = APIRouter(prefix="/simulation", tags=["simulation"])
 
@@ -21,3 +22,12 @@ async def reset_simulation(redis=Depends(get_redis)) -> dict:
     """Set the simulation command key to 'reset' so the engine process restarts."""
     await redis.set("simulation:command", "reset")
     return {"status": "ok", "message": "Simulation reset requested"}
+
+
+@router.get("/interactions")
+async def get_interactions(
+    count: int = 50,
+    redis=Depends(get_redis)
+) -> List[dict]:
+    stream = RedisInteractionStream(redis)
+    return await stream.read_recent(count=count)

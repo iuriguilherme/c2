@@ -10,7 +10,7 @@ from neural.pool import NeuronPool
 from neural.brain import Brain
 from simulation.entity import Entity
 from simulation.archive import EntityArchive
-from storage.redis import RedisEntityRepository, RedisTickStream
+from storage.redis import RedisEntityRepository, RedisTickStream, RedisInteractionStream
 
 logger = logging.getLogger(__name__)
 
@@ -20,6 +20,7 @@ class TickEngine:
         self,
         repo: RedisEntityRepository,
         stream: RedisTickStream,
+        interaction_stream: RedisInteractionStream,
         void: VoidEnvironment,
         model_pool: ModelPool,
         neuron_pool: NeuronPool | None = None,
@@ -28,6 +29,7 @@ class TickEngine:
     ) -> None:
         self._repo = repo
         self._stream = stream
+        self._interaction_stream = interaction_stream
         self._void = void
         self._model_pool = model_pool
         self._neuron_pool = neuron_pool or NeuronPool.load()
@@ -85,6 +87,14 @@ class TickEngine:
                     if parent_id not in self._spawn_queue_ids:
                         self._spawn_queue.append(parent_id)
                         self._spawn_queue_ids.add(parent_id)
+                elif result:
+                    # Successfully spawned
+                    await self._interaction_stream.publish_interaction(
+                        event_type="birth",
+                        source_id=parent_id,
+                        message=f"Parent {parent_id} spawned offspring {result.id}",
+                        extra_data={"offspring_id": result.id}
+                    )
 
         self._void.age_messages()
         await self._stream.publish_tick(tick=tick, entity_count=len(entity_ids))
@@ -106,6 +116,11 @@ class TickEngine:
             await self._repo.save(entity_id, entity.to_storage_dict())
             await self._archive.archive(entity_id)
             self._void.remove_entity(entity_id)
+            await self._interaction_stream.publish_interaction(
+                event_type="death",
+                source_id=entity_id,
+                message=f"Entity {entity_id} died of old age at {entity.age}"
+            )
             return
 
         # Execute cached action from previous tick
@@ -135,17 +150,31 @@ class TickEngine:
                 current_age=entity.age,
                 reproduction_threshold=repro_threshold,
             )
+            import json
             manifest_json = manifest.model_dump_json()
+            entity.last_manifest = manifest_json
+            entity.last_activations = json.dumps([n.activation for n in entity.brain.neurons])
 
             provider = self._model_pool.get_provider(entity.provider_name)
             if provider:
+                user_prompt = entity.user_prompt or "What will you do this tick?"
                 raw = await self._collect_llm_response(
                     provider=provider,
                     model=entity.model,
                     system_prompt=entity.system_prompt,
-                    user_prompt=entity.user_prompt or "What will you do this tick?",
+                    user_prompt=user_prompt,
                     manifest_json=manifest_json,
                 )
+                
+                # Capture LLM exchange
+                exchange = {
+                    "system": entity.system_prompt,
+                    "user": user_prompt,
+                    "manifest": manifest.model_dump(),
+                    "response": raw
+                }
+                entity.last_llm_exchange = json.dumps(exchange)
+
                 output = AgentOutput.parse_llm_response(raw)
                 if output:
                     if output.is_valid_for_manifest(manifest):
@@ -185,10 +214,23 @@ class TickEngine:
             new_pos = self._void.move(entity.id, direction=direction, distance=distance)
             entity.position_x = new_pos.x
             entity.position_y = new_pos.y
+            if distance > 1.0:
+                await self._interaction_stream.publish_interaction(
+                    event_type="movement",
+                    source_id=entity.id,
+                    message=f"Entity {entity.id} moved {direction} by {distance:.1f}",
+                    extra_data={"direction": direction, "distance": distance}
+                )
         elif action.type == "signal_emitter":
             message = str(action.parameters.get("message", ""))
             radius = float(action.parameters.get("radius", 50.0))
             self._void.broadcast(entity.id, message=message, radius=radius)
+            await self._interaction_stream.publish_interaction(
+                event_type="signal",
+                source_id=entity.id,
+                message=f"Entity {entity.id} broadcasted: '{message}' (radius: {radius:.1f})",
+                extra_data={"content": message, "radius": radius}
+            )
         elif action.type == "divide":
             if self._reproduction_handler is not None:
                 logger.debug("Entity %s triggered divide — queuing for offspring spawn", entity.id)
@@ -218,4 +260,7 @@ class TickEngine:
             last_think_tick=int(data.get("last_think_tick", 0)),
             cached_action=data.get("cached_action", ""),
             cached_action_tick=int(data.get("cached_action_tick", -1)),
+            last_manifest=data.get("last_manifest", ""),
+            last_activations=data.get("last_activations", ""),
+            last_llm_exchange=data.get("last_llm_exchange", ""),
         )

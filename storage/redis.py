@@ -41,6 +41,22 @@ class RedisEntityRepository:
                 entities.append({k.decode(): v.decode() for k, v in res.items()})
         return entities
 
+    async def load_many_partial(self, entity_ids: list[str], fields: list[str]) -> list[dict]:
+        if not entity_ids:
+            return []
+        pipe = self._r.pipeline(transaction=False)
+        for eid in entity_ids:
+            pipe.hmget(f"{self._KEY_PREFIX}:{eid}", *fields)
+        results = await pipe.execute()
+        entities = []
+        for i, res in enumerate(results):
+            if res:
+                d = {fields[j]: (res[j].decode() if res[j] else None) for j in range(len(fields))}
+                if d.get("id") is None:
+                    d["id"] = entity_ids[i]
+                entities.append(d)
+        return entities
+
     async def archive(self, entity_id: str) -> None:
         data = await self.load(entity_id)
         if data:
@@ -74,4 +90,38 @@ class RedisTickStream:
         result = []
         for _id, fields in reversed(entries):
             result.append({k.decode(): v.decode() for k, v in fields.items()})
+        return result
+
+
+class RedisInteractionStream:
+    _STREAM_KEY = "interactions:main"
+
+    def __init__(self, redis: Redis) -> None:
+        self._r = redis
+
+    async def publish_interaction(
+        self,
+        event_type: str,
+        source_id: str,
+        message: str,
+        extra_data: dict | None = None,
+    ) -> None:
+        payload = {
+            "type": event_type,
+            "source_id": source_id,
+            "message": message,
+        }
+        if extra_data:
+            import json
+            payload["extra"] = json.dumps(extra_data)
+
+        await self._r.xadd(self._STREAM_KEY, payload, maxlen=1000, approximate=True)
+
+    async def read_recent(self, count: int = 100) -> list[dict]:
+        entries = await self._r.xrevrange(self._STREAM_KEY, count=count)
+        result = []
+        for _id, fields in reversed(entries):
+            d = {k.decode(): v.decode() for k, v in fields.items()}
+            d["id"] = _id.decode()
+            result.append(d)
         return result

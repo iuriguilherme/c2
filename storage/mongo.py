@@ -1,7 +1,7 @@
 import os
 import json
 import logging
-from motor.motor_asyncio import AsyncIOMotorClient
+from pymongo import AsyncMongoClient
 from beanie import Document, init_beanie
 from typing import Optional
 
@@ -33,7 +33,7 @@ async def init_mongo() -> None:
 
     mongo_url = os.environ.get("MONGO_URL", mongo_url)
 
-    client = AsyncIOMotorClient(mongo_url)
+    client = AsyncMongoClient(mongo_url)
     await init_beanie(database=client["agi_simulation"], document_models=[SystemPrompt])
 
     count = await SystemPrompt.find_all().count()

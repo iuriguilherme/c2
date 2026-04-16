@@ -173,6 +173,36 @@
   </div>
 </div>
 
+<div class="section">
+  <h2>Neuron Pool Management</h2>
+  <div style="margin-bottom: 20px;">
+    <strong>Available Neurons</strong>
+    <table>
+      <thead>
+        <tr><th>Type</th><th>Name</th><th>Category</th><th>Description</th><th>Action</th></tr>
+      </thead>
+      <tbody id="neuron-pool-list"></tbody>
+    </table>
+  </div>
+
+  <div style="margin-bottom: 20px;">
+    <strong>Add / Update Neuron</strong><br>
+    <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px;">
+      <input type="text" id="neuron-type" placeholder="Type (e.g. speed)">
+      <input type="text" id="neuron-name" placeholder="Name">
+      <select id="neuron-category">
+        <option value="sensory">sensory</option>
+        <option value="motor">motor</option>
+        <option value="reproductive">reproductive</option>
+        <option value="interneuron">interneuron</option>
+      </select>
+      <input type="text" id="neuron-desc" placeholder="Description" style="width: 300px;">
+      <button onclick="saveNeuron()" id="btn-save-neuron">Save Neuron</button>
+    </div>
+    <span id="neuron-status" style="margin-left: 10px; color: #aaa;"></span>
+  </div>
+</div>
+
 <script>
 const API_URL = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1"
     ? "http://localhost:8000"
@@ -247,8 +277,95 @@ const state = {
   ollama: { available: [], allowed: [], default: "" },
   openrouter: { available: [], allowed: [], default: "" },
   lmstudio: { available: [], allowed: [], default: "" },
-  providers: { available: [], allowed: [], default: "" }
+  providers: { available: [], allowed: [], default: "" },
+  neurons: []
 };
+
+async function loadNeuronPool() {
+  const url = `${API_URL}/neurons`;
+  try {
+    const r = await fetch(url);
+    if (!r.ok) throw new Error(await r.text());
+    state.neurons = await r.json();
+    renderNeuronPool();
+  } catch (e) {
+    console.error("Failed to load neurons", e);
+  }
+}
+
+function renderNeuronPool() {
+  const tbody = document.getElementById('neuron-pool-list');
+  tbody.innerHTML = state.neurons.map(n =>
+    `<tr>
+      <td>${n.neuron_type}</td>
+      <td>${n.name}</td>
+      <td>${n.category}</td>
+      <td>${n.description}</td>
+      <td>
+        <button onclick="editNeuron('${n.neuron_type}')">Edit</button>
+        <button onclick="deleteNeuron('${n.neuron_type}')" style="color:red; border-color: #500;">Delete</button>
+      </td>
+    </tr>`
+  ).join('');
+}
+
+function editNeuron(type) {
+  const n = state.neurons.find(n => n.neuron_type === type);
+  if (!n) return;
+  document.getElementById('neuron-type').value = n.neuron_type;
+  document.getElementById('neuron-name').value = n.name;
+  document.getElementById('neuron-category').value = n.category;
+  document.getElementById('neuron-desc').value = n.description;
+}
+
+async function saveNeuron() {
+  const type = document.getElementById('neuron-type').value.trim();
+  const name = document.getElementById('neuron-name').value.trim();
+  const category = document.getElementById('neuron-category').value;
+  const desc = document.getElementById('neuron-desc').value.trim();
+
+  if (!type || !name || !desc) {
+    alert("Please fill in all fields.");
+    return;
+  }
+
+  const status = document.getElementById('neuron-status');
+  status.textContent = "Saving...";
+
+  try {
+    const r = await fetch(`${API_URL}/neurons/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        neuron_type: type,
+        name: name,
+        description: desc,
+        category: category
+      })
+    });
+    if (!r.ok) throw new Error(await r.text());
+    status.textContent = "Saved!";
+    status.style.color = "#0f0";
+    setTimeout(() => status.textContent = "", 3000);
+    loadNeuronPool();
+  } catch (e) {
+    status.textContent = "Error: " + e.message;
+    status.style.color = "red";
+  }
+}
+
+async function deleteNeuron(type) {
+  if (!confirm(`Are you sure you want to delete neuron ${type}?`)) return;
+  try {
+    const r = await fetch(`${API_URL}/neurons/${encodeURIComponent(type)}`, {
+      method: 'DELETE'
+    });
+    if (!r.ok) throw new Error(await r.text());
+    loadNeuronPool();
+  } catch (e) {
+    alert(`Error deleting neuron: ${e.message}`);
+  }
+}
 
 function renderModelList(provider) {
   const container = document.getElementById(`${provider}-available-list`);
@@ -613,6 +730,7 @@ function loadAllSettings() {
   loadGlobalSettings();
   loadORSettings();
   loadLMSettings();
+  loadNeuronPool();
 }
 
 // ── Startup ────────────────────────────────────────────────────────
