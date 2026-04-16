@@ -46,7 +46,6 @@
 <div class="nav">
   <a href="/settings">Settings &rarr;</a>
   <a href="/prompts">System Prompts &rarr;</a>
-  <a href="/neurons">Neurons &rarr;</a>
   <button onclick="addRandomEntity()">+ Add Random Entity</button>
   <button onclick="toggleConfigPanel()">+ Add Configured Entity</button>
   <button onclick="resetSimulation()" style="color: #f00; border-color: #500;">Reset Simulation</button>
@@ -68,11 +67,6 @@
       <label>System Prompt:
         <select id="cfg_prompt" style="background:#000; color:#0f0; border:1px solid #333; padding:4px;">
           <option value="">(Random)</option>
-        </select>
-      </label><br>
-      <label>Neuron Profile:
-        <select id="cfg_profile" style="background:#000; color:#0f0; border:1px solid #333; padding:4px;">
-          <option value="">(Default Profile)</option>
         </select>
       </label><br>
     </div>
@@ -198,25 +192,6 @@ async function addRandomEntity() {
   }
 }
 
-async function loadProfiles() {
-  try {
-    const res = await fetch(`${API_BASE}/neurons/profiles`);
-    if (res.ok) {
-      const profiles = await res.json();
-      const sel = document.getElementById("cfg_profile");
-      profiles.forEach(p => {
-        const opt = document.createElement("option");
-        opt.value = p.id;
-        opt.textContent = p.name;
-        sel.appendChild(opt);
-      });
-    }
-  } catch (e) {
-    console.warn("Failed to load profiles", e);
-  }
-}
-loadProfiles();
-
 async function submitConfiguredEntity() {
   const payload = {};
   const vBrain = document.getElementById('cfg_brain').value;
@@ -226,7 +201,6 @@ async function submitConfiguredEntity() {
   const vProv = document.getElementById('cfg_provider').value;
   const vModel = document.getElementById('cfg_model').value;
   const vPrompt = document.getElementById('cfg_prompt').value;
-  const vProfile = document.getElementById('cfg_profile').value;
 
   if (vBrain) payload.brain_size = parseFloat(vBrain);
   if (vLife) payload.lifespan = parseFloat(vLife);
@@ -235,7 +209,6 @@ async function submitConfiguredEntity() {
   if (vProv) payload.provider = vProv;
   if (vModel) payload.model = vModel;
   if (vPrompt) payload.system_prompt = vPrompt;
-  if (vProfile) payload.neuron_profile_id = vProfile;
 
   try {
     const res = await fetch(`${API_BASE}/entities/`, {

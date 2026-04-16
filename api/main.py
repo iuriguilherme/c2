@@ -55,33 +55,14 @@ async def lifespan(app: FastAPI):
             type(exc).__name__, exc,
         )
         redis_client = fakeredis.FakeAsyncRedis()
-
-    # Seed Redis pools from JSON files on startup if empty
-    from storage.redis import RedisPoolRepository
-    from genetics.gene_pool import GenePool
-    from neural.pool import NeuronPool
-
-    pool_repo = RedisPoolRepository(redis_client)
-    existing_genes = await pool_repo.get_all_genes()
-    if not existing_genes:
-        logger.info("Seeding Redis gene pool from disk...")
-        for gene in GenePool.load().definitions.values():
-            await pool_repo.set_gene(gene)
-
-    existing_neurons = await pool_repo.get_all_neurons()
-    if not existing_neurons:
-        logger.info("Seeding Redis neuron pool from disk...")
-        for neuron in NeuronPool.load().definitions.values():
-            await pool_repo.set_neuron(neuron)
-
     set_redis_client(redis_client)
     set_simulation_redis_client(redis_client)
 
     try:
         from storage.mongo import init_mongo
         await init_mongo()
-    except Exception:
-        logger.exception("Failed to initialize MongoDB/Beanie during startup")
+    except Exception as exc:
+        logger.error("Failed to initialize MongoDB/Beanie: %s", exc)
         raise
 
     yield

@@ -56,11 +56,6 @@ async def prompts_page():
     return await render_template("prompts.html")
 
 
-@app.route("/neurons")
-async def neurons_page():
-    return await render_template("neurons.html")
-
-
 @app.route("/api/state")
 async def state():
     if not _redis:

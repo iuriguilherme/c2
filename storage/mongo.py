@@ -33,9 +33,7 @@ async def init_mongo() -> None:
 
     mongo_url = os.environ.get("MONGO_URL", mongo_url)
 
-    # Motor v3 doesn't easily support motor_asyncio mock inside FakeClient or isolated without mongomock.
-    # However we just need it to not fail for Beanie. Let's let it run but catch errors.
-    client = AsyncIOMotorClient(mongo_url, serverSelectionTimeoutMS=100)
+    client = AsyncIOMotorClient(mongo_url)
     await init_beanie(database=client["agi_simulation"], document_models=[SystemPrompt])
 
     count = await SystemPrompt.find_all().count()

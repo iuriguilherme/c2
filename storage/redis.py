@@ -57,49 +57,6 @@ class RedisEntityRepository:
         return {k.decode(): v.decode() for k, v in data.items()}
 
 
-import json
-from genetics.models import GeneDefinition, GeneType
-from neural.models import NeuronDefinition, NeuronType, NeuronProfile
-
-class RedisPoolRepository:
-    _GENE_KEY = "pool:genes"
-    _NEURON_KEY = "pool:neurons"
-    _NEURON_PROFILES_KEY = "pool:neuron_profiles"
-
-    def __init__(self, redis: Redis) -> None:
-        self._r = redis
-
-    async def get_all_genes(self) -> dict[str, dict]:
-        data = await self._r.hgetall(self._GENE_KEY)
-        return {k.decode(): json.loads(v.decode()) for k, v in data.items()}
-
-    async def set_gene(self, gene: GeneDefinition) -> None:
-        await self._r.hset(self._GENE_KEY, gene.gene_type.value, gene.model_dump_json())
-
-    async def get_all_neurons(self) -> dict[str, dict]:
-        data = await self._r.hgetall(self._NEURON_KEY)
-        return {k.decode(): json.loads(v.decode()) for k, v in data.items()}
-
-    async def set_neuron(self, neuron: NeuronDefinition) -> None:
-        await self._r.hset(self._NEURON_KEY, neuron.neuron_type.value, neuron.model_dump_json())
-
-    async def get_all_neuron_profiles(self) -> dict[str, dict]:
-        data = await self._r.hgetall(self._NEURON_PROFILES_KEY)
-        return {k.decode(): json.loads(v.decode()) for k, v in data.items()}
-
-    async def get_neuron_profile(self, profile_id: str) -> dict | None:
-        data = await self._r.hget(self._NEURON_PROFILES_KEY, profile_id)
-        if not data:
-            return None
-        return json.loads(data.decode())
-
-    async def set_neuron_profile(self, profile: NeuronProfile) -> None:
-        await self._r.hset(self._NEURON_PROFILES_KEY, profile.id, profile.model_dump_json())
-
-    async def delete_neuron_profile(self, profile_id: str) -> None:
-        await self._r.hdel(self._NEURON_PROFILES_KEY, profile_id)
-
-
 class RedisTickStream:
     _STREAM_KEY = "ticks:main"
 
