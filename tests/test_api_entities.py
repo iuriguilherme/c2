@@ -132,3 +132,76 @@ async def test_add_entity_configured(override_redis):
     assert genes.get("brain_size", {}).get("value") == 9.5
     assert genes.get("lifespan", {}).get("value") == 500.0
     assert genes.get("think_interval", {}).get("value") == 10.0
+
+
+@pytest.mark.asyncio
+async def test_update_user_prompt(override_redis):
+    """Test updating the user prompt of an entity."""
+    repo = RedisEntityRepository(override_redis)
+    entity_id = "test-entity-123"
+    await repo.save(entity_id, {
+        "id": entity_id,
+        "user_prompt": "old prompt",
+        "alive": "True",
+    })
+
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.patch(f"/entities/{entity_id}/user_prompt", json={"user_prompt": "new prompt"})
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "ok"
+
+    entity_data = await repo.load(entity_id)
+    assert entity_data["user_prompt"] == "new prompt"
+
+
+@pytest.mark.asyncio
+async def test_update_user_prompt_not_found(override_redis):
+    """Test updating user prompt for a non-existent entity."""
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.patch("/entities/non-existent-entity/user_prompt", json={"user_prompt": "new prompt"})
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Entity not found"
+
+
+@pytest.mark.asyncio
+async def test_delete_entity(override_redis):
+    """Test deleting (archiving) an entity."""
+    repo = RedisEntityRepository(override_redis)
+    entity_id = "test-entity-delete"
+    await repo.save(entity_id, {
+        "id": entity_id,
+        "alive": "True",
+        "some_data": "data"
+    })
+
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.delete(f"/entities/{entity_id}")
+
+    assert response.status_code == 200
+    assert "destroyed" in response.json()["message"]
+
+    # It should not be active anymore
+    entity_data = await repo.load(entity_id)
+    assert entity_data is None
+
+    # It should be in the archive and marked as not alive
+    archived_data = await repo.load_archive(entity_id)
+    assert archived_data is not None
+    assert archived_data["alive"] == "False"
+
+
+@pytest.mark.asyncio
+async def test_delete_entity_not_found(override_redis):
+    """Test deleting a non-existent entity."""
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.delete("/entities/non-existent-entity")
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Entity not found"

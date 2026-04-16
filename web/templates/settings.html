@@ -83,10 +83,17 @@
 <div id="api-status" class="disconnected">⏳ Checking API connection...</div>
 
 <div class="section">
-  <h2>Global Settings</h2>
+  <h2>Global Settings (Providers)</h2>
   <div>
-    <label>Allowed Providers (comma separated):</label><br>
-    <input type="text" id="settings-global-providers" style="width: 400px;" placeholder="e.g. ollama, openrouter, lmstudio, anthropic"><br><br>
+    <strong>Available Providers:</strong>
+    <div id="providers-available-list" class="model-list"></div>
+
+    <div style="margin-top: 15px;">
+      <label>Default Provider: </label>
+      <select id="providers-default-select" style="background:#000; color:#0f0; border:1px solid #333; padding:4px;" onchange="updateDefault('providers')"></select>
+    </div>
+
+    <br>
     <button onclick="saveGlobalSettings()">Save Global Settings</button>
     <span id="settings-global-status" style="margin-left: 10px; color: #aaa;"></span>
   </div>
@@ -239,7 +246,8 @@ async function initialConnect() {
 const state = {
   ollama: { available: [], allowed: [], default: "" },
   openrouter: { available: [], allowed: [], default: "" },
-  lmstudio: { available: [], allowed: [], default: "" }
+  lmstudio: { available: [], allowed: [], default: "" },
+  providers: { available: [], allowed: [], default: "" }
 };
 
 function renderModelList(provider) {
@@ -347,7 +355,12 @@ async function loadGlobalSettings() {
     const r = await fetch(url);
     if (!r.ok) throw new Error(`HTTP ${r.status}: ${await r.text()}`);
     const d = await r.json();
-    document.getElementById('settings-global-providers').value = d.allowed_providers ? d.allowed_providers.join(', ') : '';
+
+    state.providers.available = d.available_providers || [];
+    state.providers.allowed = d.allowed_providers || [];
+    state.providers.default = d.default_provider || "";
+
+    renderModelList('providers');
   } catch (e) {
     console.error(`[loadGlobalSettings] ${formatApiError(url, e)}`);
     const statusEl = document.getElementById('settings-global-status');
@@ -357,15 +370,17 @@ async function loadGlobalSettings() {
 }
 
 async function saveGlobalSettings() {
-  const allowedRaw = document.getElementById('settings-global-providers').value;
-  const allowed = allowedRaw ? allowedRaw.split(',').map(s => s.trim()).filter(Boolean) : [];
+  const defaultProvider = document.getElementById('providers-default-select').value || state.providers.default;
   const status = document.getElementById('settings-global-status');
 
   try {
     const r = await fetch(`${API_URL}/settings`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ allowed_providers: allowed })
+      body: JSON.stringify({
+        allowed_providers: state.providers.allowed,
+        default_provider: defaultProvider
+      })
     });
     if (!r.ok) throw new Error(await r.text());
     status.textContent = "Saved!";

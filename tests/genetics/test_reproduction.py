@@ -50,7 +50,7 @@ class TestAsexualReproduction:
         offspring = reproduce(parent)
 
         assert isinstance(offspring, Genome)
-        assert len(offspring.genes) == 7
+        assert len(offspring.genes) == 6
 
 
 class TestReproductionWithDeterministicRng:

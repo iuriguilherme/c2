@@ -30,41 +30,31 @@ class EntityFactory:
         model_assignment: ModelAssignment,
         rng: random.Random | None = None,
         parent_user_prompt: str = "",
-        neuron_pool_override: NeuronPool | None = None,
-        activation_functions: list | None = None,
-        neuron_profile_id: str | None = None,
-        parent_brain: Brain | None = None,
+        system_prompt: str = "",
     ) -> Entity:
         r = rng or random.Random()
 
-        if parent_brain:
-            brain = Brain.reproduce(
-                parent_brain,
-                genome,
-                neuron_pool_override or self._neuron_pool,
-                rng=r,
-                activation_functions=activation_functions,
-            )
-        else:
-            brain = Brain.from_genome(
-                genome,
-                neuron_pool_override or self._neuron_pool,
-                rng=r,
-                activation_functions=activation_functions,
-            )
+        brain = Brain.from_genome(genome, self._neuron_pool, rng=r)
 
-        # System prompt: deterministic from personality_seed
-        seed = int(genome.get(GeneType.PERSONALITY_SEED))
-        personality_rng = random.Random(seed)
-        template = personality_rng.choice(_PERSONALITY_TEMPLATES)
-        base_system_prompt = (
-            f"{template}\n\n"
-            f"You exist in a void simulation. Each tick you receive a Capability Manifest "
-            f"describing what you can perceive and what actions are available to you. "
-            f"Respond with valid JSON: "
-            '{"action": {"type": "<action_type>", "parameters": {...}}, '
-            '"user_prompt_update": "<optional reflection>"}'
-        )
+        if not system_prompt:
+            # System prompt: deterministic from personality_seed
+            seed = int(genome.get(GeneType.PERSONALITY_SEED))
+            personality_rng = random.Random(seed)
+            import asyncio
+            from storage.mongo import SystemPrompt
+
+            # Since this is synchronous, and we can't easily fetch from DB here without
+            # redesigning the engine spawn loop, we fallback to a simple default if none provided.
+            # In engine/API, the system prompt should ideally be fetched and passed in.
+            template = personality_rng.choice(_PERSONALITY_TEMPLATES)
+            system_prompt = (
+                f"{template}\n\n"
+                f"You exist in a void simulation. Each tick you receive a Capability Manifest "
+                f"describing what you can perceive and what actions are available to you. "
+                f"Respond with valid JSON: "
+                '{"action": {"type": "<action_type>", "parameters": {...}}, '
+                '"user_prompt_update": "<optional reflection>"}'
+            )
 
         think_interval = max(1, round(genome.get(GeneType.THINK_INTERVAL)))
 
@@ -72,12 +62,9 @@ class EntityFactory:
             id=entity_id,
             genome=genome,
             brain=brain,
-            base_system_prompt=base_system_prompt,
-            neural_system_prompt="",
-            learned_system_prompt="",
+            system_prompt=system_prompt,
             user_prompt=parent_user_prompt,
             model=model_assignment.model,
             provider_name=model_assignment.provider_name,
             think_interval=think_interval,
-            neuron_profile_id=neuron_profile_id or "",
         )

@@ -83,7 +83,7 @@ def _genome(brain_size: float = 4.0, affinity: float = 0.5) -> Genome:
 
 def test_neuron_pool_loads_all_types():
     pool = NeuronPool.load()
-    assert len(pool.definitions) == 7
+    assert len(pool.definitions) == 6
     assert NeuronType.LOCOMOTION in pool.definitions
 
 

@@ -9,7 +9,6 @@ class GeneType(str, Enum):
     PERSONALITY_SEED = "personality_seed"
     THINK_INTERVAL = "think_interval"
     REPRODUCTION_THRESHOLD = "reproduction_threshold"
-    COGNITIVE_CLARITY = "cognitive_clarity"
 
 
 class GeneDefinition(BaseModel):

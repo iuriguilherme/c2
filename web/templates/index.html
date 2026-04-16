@@ -35,6 +35,9 @@
   .side-panel .detail-block { margin-bottom: 10px; }
   .side-panel .detail-block strong { color: #888; display: block; }
   .side-panel pre { background: #111; padding: 10px; border: 1px solid #333; overflow-x: auto; font-size: 0.85rem; margin-top: 4px; }
+  .side-panel textarea { width: 100%; box-sizing: border-box; background: #111; color: #ccc; border: 1px solid #333; padding: 10px; font-family: monospace; font-size: 0.85rem; margin-top: 4px; resize: vertical; min-height: 80px; }
+  .side-panel button.save-btn { font-family: monospace; font-size: 0.85rem; cursor: pointer; color: #0f0; border: 1px solid #333; padding: 4px 8px; background: #1a1a1a; margin-top: 4px; }
+  .side-panel button.save-btn:hover { background: #333; }
   tr { cursor: pointer; }
   tr:hover { background: #111; }
 </style>
@@ -42,23 +45,39 @@
 <body>
 <div class="nav">
   <a href="/settings">Settings &rarr;</a>
-  <a href="/neurons">Neurons &rarr;</a>
+  <a href="/prompts">System Prompts &rarr;</a>
   <button onclick="addRandomEntity()">+ Add Random Entity</button>
   <button onclick="toggleConfigPanel()">+ Add Configured Entity</button>
   <button onclick="resetSimulation()" style="color: #f00; border-color: #500;">Reset Simulation</button>
 </div>
 
 <div id="config-panel" class="config-panel">
-  <label>Brain Size: <input type="number" id="cfg_brain" placeholder="e.g. 5.0" step="0.1"></label>
-  <label>Lifespan: <input type="number" id="cfg_life" placeholder="e.g. 100.0" step="1"></label>
-  <label>Think Interval: <input type="number" id="cfg_think" placeholder="e.g. 5.0" step="1"></label>
-  <label>Reproduction Threshold: <input type="number" id="cfg_repro" placeholder="e.g. 50.0" step="1"></label>
-  <label>Neuron Profile:
-    <select id="cfg_profile">
-      <option value="">(Default Profile)</option>
-    </select>
-  </label>
-  <button onclick="submitConfiguredEntity()">Spawn Entity</button>
+  <div style="display:flex; gap:20px;">
+    <div>
+      <label>Provider:
+        <select id="cfg_provider" onchange="updateCfgModelOptions()" style="background:#000; color:#0f0; border:1px solid #333; padding:4px;">
+          <option value="">(Random)</option>
+        </select>
+      </label><br>
+      <label>Model:
+        <select id="cfg_model" style="background:#000; color:#0f0; border:1px solid #333; padding:4px;">
+          <option value="">(Random)</option>
+        </select>
+      </label><br>
+      <label>System Prompt:
+        <select id="cfg_prompt" style="background:#000; color:#0f0; border:1px solid #333; padding:4px;">
+          <option value="">(Random)</option>
+        </select>
+      </label><br>
+    </div>
+    <div>
+      <label>Brain Size: <input type="number" id="cfg_brain" placeholder="e.g. 5.0" step="0.1"></label><br>
+      <label>Lifespan: <input type="number" id="cfg_life" placeholder="e.g. 100.0" step="1"></label><br>
+      <label>Think Interval: <input type="number" id="cfg_think" placeholder="e.g. 5.0" step="1"></label><br>
+      <label>Reproduction Threshold: <input type="number" id="cfg_repro" placeholder="e.g. 50.0" step="1"></label><br>
+    </div>
+  </div>
+  <button onclick="submitConfiguredEntity()" style="margin-top:10px;">Spawn Entity</button>
 </div>
 
 <div class="layout">
@@ -76,6 +95,7 @@
   <div class="side-panel" id="side-panel">
     <h2>Entity Details</h2>
     <button onclick="closeSidePanel()" style="margin-bottom: 15px;">Close Panel</button>
+    <button id="destroy-btn" style="color: #f00; border-color: #500; margin-bottom: 15px; margin-left: 10px; display: none;">Destroy Entity</button>
     <div id="side-panel-content">Select an entity to view details.</div>
   </div>
 </div>
@@ -102,6 +122,58 @@ async function resetSimulation() {
 function toggleConfigPanel() {
   const p = document.getElementById("config-panel");
   p.style.display = p.style.display === "block" ? "none" : "block";
+  if (p.style.display === "block") {
+    loadConfigOptions();
+  }
+}
+
+let loadedSettings = {};
+
+async function loadConfigOptions() {
+  try {
+    const sRes = await fetch(`${API_BASE}/settings/`);
+    if (sRes.ok) loadedSettings.global = await sRes.json();
+
+    for (const prov of loadedSettings.global.allowed_providers || []) {
+      const pRes = await fetch(`${API_BASE}/${prov}/settings`);
+      if (pRes.ok) {
+        const d = await pRes.json();
+        const allowedRaw = d[`${prov}_allowed_models`];
+        let allowed = [];
+        if (Array.isArray(allowedRaw)) allowed = allowedRaw;
+        else if (allowedRaw && allowedRaw.text && Array.isArray(allowedRaw.text)) allowed = allowedRaw.text;
+        loadedSettings[prov] = allowed;
+      }
+    }
+
+    const pSel = document.getElementById('cfg_provider');
+    pSel.innerHTML = '<option value="">(Random)</option>';
+    (loadedSettings.global.allowed_providers || []).forEach(p => {
+      pSel.innerHTML += `<option value="${p}">${p}</option>`;
+    });
+
+    const spRes = await fetch(`${API_BASE}/system-prompts/`);
+    if (spRes.ok) {
+      const prompts = await spRes.json();
+      const spSel = document.getElementById('cfg_prompt');
+      spSel.innerHTML = '<option value="">(Random)</option>';
+      prompts.forEach(p => {
+        spSel.innerHTML += `<option value="${p.content}">${p.name}</option>`;
+      });
+    }
+  } catch (e) {
+    console.error("Failed to load config options", e);
+  }
+}
+
+function updateCfgModelOptions() {
+  const prov = document.getElementById('cfg_provider').value;
+  const mSel = document.getElementById('cfg_model');
+  mSel.innerHTML = '<option value="">(Random)</option>';
+  if (!prov || !loadedSettings[prov]) return;
+  loadedSettings[prov].forEach(m => {
+    mSel.innerHTML += `<option value="${m}">${m}</option>`;
+  });
 }
 
 async function addRandomEntity() {
@@ -120,38 +192,23 @@ async function addRandomEntity() {
   }
 }
 
-async function loadProfiles() {
-  try {
-    const res = await fetch(`${API_BASE}/neurons/profiles`);
-    if (res.ok) {
-      const profiles = await res.json();
-      const sel = document.getElementById("cfg_profile");
-      profiles.forEach(p => {
-        const opt = document.createElement("option");
-        opt.value = p.id;
-        opt.textContent = p.name;
-        sel.appendChild(opt);
-      });
-    }
-  } catch (e) {
-    console.warn("Failed to load profiles", e);
-  }
-}
-loadProfiles();
-
 async function submitConfiguredEntity() {
   const payload = {};
   const vBrain = document.getElementById('cfg_brain').value;
   const vLife = document.getElementById('cfg_life').value;
   const vThink = document.getElementById('cfg_think').value;
   const vRepro = document.getElementById('cfg_repro').value;
-  const vProfile = document.getElementById('cfg_profile').value;
+  const vProv = document.getElementById('cfg_provider').value;
+  const vModel = document.getElementById('cfg_model').value;
+  const vPrompt = document.getElementById('cfg_prompt').value;
 
   if (vBrain) payload.brain_size = parseFloat(vBrain);
   if (vLife) payload.lifespan = parseFloat(vLife);
   if (vThink) payload.think_interval = parseFloat(vThink);
   if (vRepro) payload.reproduction_threshold = parseFloat(vRepro);
-  if (vProfile) payload.neuron_profile_id = vProfile;
+  if (vProv) payload.provider = vProv;
+  if (vModel) payload.model = vModel;
+  if (vPrompt) payload.system_prompt = vPrompt;
 
   try {
     const res = await fetch(`${API_BASE}/entities/`, {
@@ -176,8 +233,10 @@ function closeSidePanel() {
 async function loadEntityDetails(id) {
   const panel = document.getElementById("side-panel");
   const content = document.getElementById("side-panel-content");
+  const destroyBtn = document.getElementById("destroy-btn");
   panel.style.display = "block";
   content.innerHTML = "Loading...";
+  destroyBtn.style.display = "none";
 
   try {
     const res = await fetch(`${API_BASE}/entities/${encodeURIComponent(id)}`);
@@ -213,7 +272,7 @@ async function loadEntityDetails(id) {
       {label: "Position", value: `X: ${parseFloat(data.position_x).toFixed(1)} Y: ${parseFloat(data.position_y).toFixed(1)}`},
       {label: "Provider / Model", value: `${data.provider} / ${data.model}`},
       {label: "System Prompt", value: data.system_prompt, pre: true},
-      {label: "User Prompt", value: data.user_prompt, pre: true},
+      {label: "User Prompt", value: data.user_prompt, pre: true, is_user_prompt: true},
       {label: "Cached Action", value: actionHtml, pre: true},
       {label: "Genetics", value: genomeHtml, pre: true},
     ];
@@ -225,7 +284,18 @@ async function loadEntityDetails(id) {
       strong.textContent = f.label;
       block.appendChild(strong);
 
-      if (f.pre) {
+      if (f.is_user_prompt) {
+          const ta = document.createElement("textarea");
+          ta.id = "edit_user_prompt";
+          ta.value = f.value;
+          block.appendChild(ta);
+
+          const btn = document.createElement("button");
+          btn.className = "save-btn";
+          btn.textContent = "Save User Prompt";
+          btn.onclick = () => saveUserPrompt(data.id);
+          block.appendChild(btn);
+      } else if (f.pre) {
           const pre = document.createElement("pre");
           pre.textContent = f.value;
           block.appendChild(pre);
@@ -236,8 +306,42 @@ async function loadEntityDetails(id) {
       }
       content.appendChild(block);
     });
+
+    // Show destroy button and set up its action
+    destroyBtn.style.display = "inline-block";
+    destroyBtn.onclick = () => destroyEntity(data.id);
   } catch (e) {
     content.textContent = "Failed to load details: " + e.message;
+  }
+}
+
+async function destroyEntity(id) {
+  if (!confirm(`WARNING: You are about to destroy entity ${id}. This cannot be undone.`)) return;
+  if (!confirm(`Are you absolutely sure you want to permanently destroy entity ${id}?`)) return;
+
+  try {
+    const res = await fetch(`${API_BASE}/entities/${encodeURIComponent(id)}`, { method: "DELETE" });
+    if (!res.ok) throw new Error(await res.text());
+    alert("Entity destroyed.");
+    closeSidePanel();
+    refresh();
+  } catch (e) {
+    alert("Failed to destroy entity: " + e.message);
+  }
+}
+
+async function saveUserPrompt(id) {
+  const newUserPrompt = document.getElementById('edit_user_prompt').value;
+  try {
+    const res = await fetch(`${API_BASE}/entities/${encodeURIComponent(id)}/user_prompt`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ user_prompt: newUserPrompt })
+    });
+    if (!res.ok) throw new Error(await res.text());
+    alert("User prompt updated successfully.");
+  } catch (e) {
+    alert("Failed to update user prompt: " + e.message);
   }
 }
 

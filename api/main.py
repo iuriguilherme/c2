@@ -13,6 +13,7 @@ from api.routes.openrouter import router as openrouter_router
 from api.routes.lmstudio import router as lmstudio_router
 from api.routes.simulation import router as simulation_router
 from api.routes.simulation import set_redis_client as set_simulation_redis_client
+from api.routes.system_prompts import router as system_prompts_router
 
 logger = logging.getLogger(__name__)
 redis_client = None
@@ -54,27 +55,16 @@ async def lifespan(app: FastAPI):
             type(exc).__name__, exc,
         )
         redis_client = fakeredis.FakeAsyncRedis()
-
-    # Seed Redis pools from JSON files on startup if empty
-    from storage.redis import RedisPoolRepository
-    from genetics.gene_pool import GenePool
-    from neural.pool import NeuronPool
-
-    pool_repo = RedisPoolRepository(redis_client)
-    existing_genes = await pool_repo.get_all_genes()
-    if not existing_genes:
-        logger.info("Seeding Redis gene pool from disk...")
-        for gene in GenePool.load().definitions.values():
-            await pool_repo.set_gene(gene)
-
-    existing_neurons = await pool_repo.get_all_neurons()
-    if not existing_neurons:
-        logger.info("Seeding Redis neuron pool from disk...")
-        for neuron in NeuronPool.load().definitions.values():
-            await pool_repo.set_neuron(neuron)
-
     set_redis_client(redis_client)
     set_simulation_redis_client(redis_client)
+
+    try:
+        from storage.mongo import init_mongo
+        await init_mongo()
+    except Exception as exc:
+        logger.error("Failed to initialize MongoDB/Beanie: %s", exc)
+        raise
+
     yield
     if redis_client is not None:
         await redis_client.aclose()
@@ -98,6 +88,7 @@ app.include_router(settings_router)
 app.include_router(openrouter_router)
 app.include_router(lmstudio_router)
 app.include_router(simulation_router)
+app.include_router(system_prompts_router)
 
 
 @app.get("/health")

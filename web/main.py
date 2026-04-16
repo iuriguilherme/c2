@@ -51,9 +51,9 @@ async def settings_page():
     return await render_template("settings.html")
 
 
-@app.route("/neurons")
-async def neurons_page():
-    return await render_template("neurons.html")
+@app.route("/prompts")
+async def prompts_page():
+    return await render_template("prompts.html")
 
 
 @app.route("/api/state")

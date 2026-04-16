@@ -128,26 +128,6 @@ class TickEngine:
                 for m in self._void.get_messages(entity_id)
             ]
             repro_threshold = entity.genome.get(GeneType.REPRODUCTION_THRESHOLD)
-
-            # Update sensory neurons directly before evaluating
-            from neural.models import NeuronType
-            for neuron in entity.brain.neurons:
-                if neuron.neuron_type == NeuronType.PROXIMITY:
-                    # Provide an activation level based on proximity of nearest entity (closer = higher)
-                    activation = 0.0
-                    if nearby:
-                        closest_dist = min(n["distance"] for n in nearby)
-                        # Normalize between 0 and 1, assuming max interaction distance of 100
-                        activation = max(0.0, 1.0 - (closest_dist / 100.0))
-                    neuron.activation = activation
-                elif neuron.neuron_type == NeuronType.SIGNAL_RECEIVER:
-                    # Higher activation the more messages received
-                    activation = min(1.0, len(messages) * 0.2)
-                    neuron.activation = activation
-
-            # Pre-evaluate neural network with latest state
-            entity.brain.evaluate()
-
             manifest = entity.brain.generate_manifest(
                 agent_id=entity_id,
                 tick=tick,
@@ -155,21 +135,7 @@ class TickEngine:
                 current_age=entity.age,
                 reproduction_threshold=repro_threshold,
             )
-
-            # Process cognitive clarity for neural system prompt updates
-            clarity = entity.genome.get(GeneType.COGNITIVE_CLARITY)
-            if clarity > 0.8:
-                manifest_json = manifest.model_dump_json(indent=2)
-                entity.neural_system_prompt = f"Neural State (High Clarity):\n{manifest_json}"
-            elif clarity > 0.4:
-                manifest_json = manifest.model_dump_json()
-                entity.neural_system_prompt = f"Neural State:\n{manifest_json}"
-            else:
-                import json
-                raw_str = json.dumps(manifest.model_dump())
-                # Scramble it slightly
-                manifest_json = "".join(c if c not in '"{}:,' else ' ' for c in raw_str)
-                entity.neural_system_prompt = f"Sensory noise (Low Clarity):\n{manifest_json}"
+            manifest_json = manifest.model_dump_json()
 
             provider = self._model_pool.get_provider(entity.provider_name)
             if provider:
@@ -223,15 +189,6 @@ class TickEngine:
             message = str(action.parameters.get("message", ""))
             radius = float(action.parameters.get("radius", 50.0))
             self._void.broadcast(entity.id, message=message, radius=radius)
-        elif action.type == "cortex_input_receiver":
-            input_val = float(action.parameters.get("input_value", 0.0))
-            # Map [-1.0, 1.0] range to [0.0, 1.0] activation range
-            mapped_val = (input_val + 1.0) / 2.0
-            # Find cortex_input_receiver neuron and set its state
-            from neural.models import NeuronType
-            for neuron in entity.brain.neurons:
-                if neuron.neuron_type == NeuronType.CORTEX_INPUT_RECEIVER:
-                    neuron.activation = max(0.0, min(1.0, mapped_val))
         elif action.type == "divide":
             if self._reproduction_handler is not None:
                 logger.debug("Entity %s triggered divide — queuing for offspring spawn", entity.id)
@@ -245,16 +202,11 @@ class TickEngine:
         brain = Brain.from_genome(
             genome, self._neuron_pool, rng=random.Random(hash(data["id"]) % (2**31))
         )
-        base_system_prompt = data.get("base_system_prompt")
-        if not base_system_prompt:
-            base_system_prompt = data.get("system_prompt", "")
         return Entity(
             id=data["id"],
             genome=genome,
             brain=brain,
-            base_system_prompt=base_system_prompt,
-            neural_system_prompt=data.get("neural_system_prompt", ""),
-            learned_system_prompt=data.get("learned_system_prompt", ""),
+            system_prompt=data.get("system_prompt", ""),
             user_prompt=data.get("user_prompt", ""),
             model=data.get("model", ""),
             provider_name=data.get("provider", ""),
@@ -266,6 +218,4 @@ class TickEngine:
             last_think_tick=int(data.get("last_think_tick", 0)),
             cached_action=data.get("cached_action", ""),
             cached_action_tick=int(data.get("cached_action_tick", -1)),
-            neuron_profile_id=data.get("neuron_profile_id", ""),
-            parent_brain_state=data.get("parent_brain_state", ""),
         )
