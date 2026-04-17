@@ -143,6 +143,10 @@ class TickEngine:
                 for m in self._void.get_messages(entity_id)
             ]
             repro_threshold = entity.genome.get(GeneType.REPRODUCTION_THRESHOLD)
+            
+            entity.brain.evaluate({"cortex_input_receiver": entity.cortex_signal})
+            entity.cortex_signal = 0.0
+            
             manifest = entity.brain.generate_manifest(
                 agent_id=entity_id,
                 tick=tick,
@@ -151,8 +155,23 @@ class TickEngine:
                 reproduction_threshold=repro_threshold,
             )
             import json
-            manifest_json = manifest.model_dump_json()
-            entity.last_manifest = manifest_json
+            
+            clarity = entity.genome.get(GeneType.COGNITIVE_CLARITY)
+            if clarity > 0.8:
+                # Need to dump to dict first to apply indent
+                manifest_json = json.dumps(manifest.model_dump(), indent=2)
+            elif clarity > 0.4:
+                manifest_json = manifest.model_dump_json()
+            else:
+                raw_json = manifest.model_dump_json()
+                manifest_json = "".join(
+                    " " if c in "{}[]\"" else c 
+                    for c in raw_json
+                )
+                
+            entity.neural_system_prompt = manifest_json
+            
+            entity.last_manifest = manifest.model_dump_json()
             entity.last_activations = json.dumps([n.activation for n in entity.brain.neurons])
 
             provider = self._model_pool.get_provider(entity.provider_name)
@@ -238,6 +257,12 @@ class TickEngine:
                 if entity.id not in self._spawn_queue_ids:
                     self._spawn_queue.append(entity.id)
                     self._spawn_queue_ids.add(entity.id)
+        elif action.type == "cortex_write":
+            try:
+                val = float(action.parameters.get("value", 0.0))
+                entity.cortex_signal = max(-1.0, min(1.0, val))
+            except (ValueError, TypeError):
+                entity.cortex_signal = 0.0
 
     def _load_entity(self, data: dict) -> Entity:
         genome = Genome.model_validate_json(data["genome"])
@@ -248,7 +273,8 @@ class TickEngine:
             id=data["id"],
             genome=genome,
             brain=brain,
-            system_prompt=data.get("system_prompt", ""),
+            base_system_prompt=data.get("base_system_prompt") or data.get("system_prompt", ""),
+            learned_system_prompt=data.get("learned_system_prompt", ""),
             user_prompt=data.get("user_prompt", ""),
             model=data.get("model", ""),
             provider_name=data.get("provider", ""),
@@ -258,6 +284,7 @@ class TickEngine:
             alive=data.get("alive") == "True",
             think_interval=int(data.get("think_interval", 5)),
             last_think_tick=int(data.get("last_think_tick", 0)),
+            cortex_signal=float(data.get("cortex_signal", 0.0)),
             cached_action=data.get("cached_action", ""),
             cached_action_tick=int(data.get("cached_action_tick", -1)),
             last_manifest=data.get("last_manifest", ""),

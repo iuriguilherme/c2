@@ -33,6 +33,9 @@ class ReproductionHandler:
     ) -> Entity:
         r = rng or random.Random()
         offspring_genome = reproduce(parent.genome, pool=self._gene_pool, rng=r)
+        
+        offspring_brain = parent.brain.reproduce(offspring_genome, pool=self._factory._neuron_pool, rng=r)
+        
         self._entity_counter += 1
         offspring_id = f"offspring-{tick}-{self._entity_counter}"
         assignment = self._model_pool.assign_random(rng=r)
@@ -46,7 +49,8 @@ class ReproductionHandler:
             model_assignment=assignment,
             rng=r,
             parent_user_prompt=parent.user_prompt,
-            system_prompt=parent.system_prompt,
+            system_prompt=parent.base_system_prompt,
+            brain=offspring_brain,
         )
         # Spawn near parent
         parent_pos = self._void.get_position(parent.id) or Position(500.0, 500.0)

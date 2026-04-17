@@ -96,6 +96,7 @@
 <body>
 <div class="nav">
   <a href="/settings">Settings &rarr;</a>
+  <a href="/neural">Neural Config &rarr;</a>
   <a href="/prompts">System Prompts &rarr;</a>
   <button onclick="addRandomEntity()">+ Add Random Entity</button>
   <button onclick="toggleConfigPanel()">+ Add Configured Entity</button>
@@ -118,6 +119,11 @@
       <label>System Prompt:
         <select id="cfg_prompt" style="background:#000; color:#0f0; border:1px solid #333; padding:4px;">
           <option value="">(Random)</option>
+        </select>
+      </label><br>
+      <label>Neuron Profile:
+        <select id="cfg_profile" style="background:#000; color:#0f0; border:1px solid #333; padding:4px;">
+          <option value="">(Random / Default)</option>
         </select>
       </label><br>
     </div>
@@ -346,6 +352,16 @@ async function loadConfigOptions() {
         nList.appendChild(li);
       });
     }
+
+    const prRes = await fetch(`${API_BASE}/neurons/profiles`);
+    if (prRes.ok) {
+      const profiles = await prRes.json();
+      const prSel = document.getElementById('cfg_profile');
+      prSel.innerHTML = '<option value="">(Random / Default)</option>';
+      profiles.forEach(p => {
+        prSel.innerHTML += `<option value="${p.id}">${p.name}</option>`;
+      });
+    }
   } catch (e) {
     console.error("Failed to load config options", e);
   }
@@ -386,6 +402,7 @@ async function submitConfiguredEntity() {
   const vProv = document.getElementById('cfg_provider').value;
   const vModel = document.getElementById('cfg_model').value;
   const vPrompt = document.getElementById('cfg_prompt').value;
+  const vProfile = document.getElementById('cfg_profile').value;
 
   if (vBrain) payload.brain_size = parseFloat(vBrain);
   if (vLife) payload.lifespan = parseFloat(vLife);
@@ -394,6 +411,7 @@ async function submitConfiguredEntity() {
   if (vProv) payload.provider = vProv;
   if (vModel) payload.model = vModel;
   if (vPrompt) payload.system_prompt = vPrompt;
+  if (vProfile) payload.neuron_profile = vProfile;
 
   try {
     const res = await fetch(`${API_BASE}/entities/`, {

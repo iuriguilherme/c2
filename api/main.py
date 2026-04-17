@@ -6,6 +6,7 @@ import fakeredis
 from fastapi.middleware.cors import CORSMiddleware
 from api.routes.genes import router as genes_router
 from api.routes.neurons import router as neurons_router
+from api.routes.neurons import set_redis_client as set_neurons_redis_client
 from api.routes.entities import router as entities_router, set_redis_client
 from api.routes.ollama import router as ollama_router
 from api.routes.settings import router as settings_router
@@ -57,6 +58,34 @@ async def lifespan(app: FastAPI):
         redis_client = fakeredis.FakeAsyncRedis()
     set_redis_client(redis_client)
     set_simulation_redis_client(redis_client)
+    set_neurons_redis_client(redis_client)
+
+    try:
+        # Seed pool data into Redis if empty
+        from storage.redis import RedisPoolRepository
+        import json
+        repo = RedisPoolRepository(redis_client)
+        
+        neurons = await repo.get_all_neurons()
+        if not neurons:
+            neuron_pool_path = os.path.join(_root, "data", "neuron_pool.json")
+            if os.path.exists(neuron_pool_path):
+                with open(neuron_pool_path, "r") as f:
+                    raw_neurons = json.load(f)
+                    for n in raw_neurons:
+                        await repo.save_neuron(n["neuron_type"], n)
+        
+        profiles = await repo.get_all_profiles()
+        if not profiles:
+            profiles_path = os.path.join(_root, "data", "neuron_profiles.json")
+            if os.path.exists(profiles_path):
+                with open(profiles_path, "r") as f:
+                    raw_profiles = json.load(f)
+                    for p in raw_profiles:
+                        await repo.save_profile(p["id"], p)
+                        
+    except Exception as exc:
+        logger.error("Failed to seed RedisPoolRepository: %s", exc)
 
     try:
         from storage.mongo import init_mongo

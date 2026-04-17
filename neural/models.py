@@ -10,6 +10,13 @@ class NeuronType(str, Enum):
     SIGNAL_EMITTER = "signal_emitter"
     DIVIDE = "divide"
     MEMORY_CELL = "memory_cell"
+    CORTEX_INPUT_RECEIVER = "cortex_input_receiver"
+
+
+class ActivationFunction(str, Enum):
+    TANH = "tanh"
+    SIGMOID = "sigmoid"
+    RELU = "relu"
 
 
 class NeuronDefinition(BaseModel):
@@ -18,6 +25,16 @@ class NeuronDefinition(BaseModel):
     name: str
     description: str
     category: Literal["sensory", "motor", "reproductive", "interneuron"]
+
+
+class NeuronProfile(BaseModel):
+    model_config = ConfigDict(extra="allow")
+    id: str
+    name: str
+    description: str
+    neurons: list[NeuronType]
+    activation_function: ActivationFunction = ActivationFunction.TANH
+    is_default: bool = False
 
 
 class NeuronInstance(BaseModel):

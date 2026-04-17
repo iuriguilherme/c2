@@ -31,10 +31,13 @@ class EntityFactory:
         rng: random.Random | None = None,
         parent_user_prompt: str = "",
         system_prompt: str = "",
+        profile: dict | None = None,
+        brain: Brain | None = None,
     ) -> Entity:
         r = rng or random.Random()
 
-        brain = Brain.from_genome(genome, self._neuron_pool, rng=r)
+        if brain is None:
+            brain = Brain.from_genome(genome, self._neuron_pool, rng=r, profile=profile)
 
         if not system_prompt:
             # System prompt: deterministic from personality_seed
@@ -62,7 +65,7 @@ class EntityFactory:
             id=entity_id,
             genome=genome,
             brain=brain,
-            system_prompt=system_prompt,
+            base_system_prompt=system_prompt,
             user_prompt=parent_user_prompt,
             model=model_assignment.model,
             provider_name=model_assignment.provider_name,

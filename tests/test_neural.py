@@ -83,7 +83,7 @@ def _genome(brain_size: float = 4.0, affinity: float = 0.5) -> Genome:
 
 def test_neuron_pool_loads_all_types():
     pool = NeuronPool.load()
-    assert len(pool.definitions) == 6
+    assert len(pool.definitions) == 7
     assert NeuronType.LOCOMOTION in pool.definitions
 
 
@@ -155,3 +155,57 @@ def test_different_brain_configs_produce_different_manifests():
     caps1 = set(m1.perception) | set(m1.actions)
     caps2 = set(m2.perception) | set(m2.actions)
     assert len(caps2) >= len(caps1)
+
+
+def test_brain_evaluate_clamps_and_computes_edges():
+    from neural.models import ActivationFunction
+    
+    b = Brain(
+        neurons=[
+            NeuronInstance(neuron_type=NeuronType.PROXIMITY, activation=0.5),
+            NeuronInstance(neuron_type=NeuronType.LOCOMOTION, activation=0.0)
+        ],
+        edges=[
+            (NeuronType.PROXIMITY.value, NeuronType.LOCOMOTION.value, 1.0)
+        ],
+        activation_function=ActivationFunction.RELU
+    )
+    
+    b.evaluate({NeuronType.PROXIMITY.value: 0.8})
+    
+    proximity_act = next(n.activation for n in b.neurons if n.neuron_type == NeuronType.PROXIMITY)
+    locomotion_act = next(n.activation for n in b.neurons if n.neuron_type == NeuronType.LOCOMOTION)
+    
+    assert proximity_act == 0.8  # RELU(0.8) -> 0.8
+    assert locomotion_act == 0.5  # RELU(1.0 * current_0.5) -> 0.5
+
+    b.evaluate({NeuronType.PROXIMITY.value: 0.2})
+    
+    proximity_act = next(n.activation for n in b.neurons if n.neuron_type == NeuronType.PROXIMITY)
+    locomotion_act = next(n.activation for n in b.neurons if n.neuron_type == NeuronType.LOCOMOTION)
+
+    assert proximity_act == 0.2  # RELU(0.2) -> 0.2
+    assert locomotion_act == 0.8  # RELU(1.0 * current_0.8) -> 0.8
+
+def test_brain_reproduce_mutates_edges():
+    pool = NeuronPool.load()
+    g1 = _genome(brain_size=2.0)
+    
+    b1 = Brain(
+        neurons=[
+            NeuronInstance(neuron_type=NeuronType.PROXIMITY, activation=0.5),
+            NeuronInstance(neuron_type=NeuronType.LOCOMOTION, activation=0.0)
+        ],
+        edges=[
+            (NeuronType.PROXIMITY.value, NeuronType.LOCOMOTION.value, 1.0)
+        ],
+    )
+    
+    b2 = b1.reproduce(g1, pool, rng=random.Random(42))
+    
+    assert b2 is not b1
+    assert len(b2.neurons) >= 2
+    
+    # Parent state captured
+    assert b2.parent_brain_state is not None
+    assert b2.parent_brain_state["edges"] == [(NeuronType.PROXIMITY.value, NeuronType.LOCOMOTION.value, 1.0)]

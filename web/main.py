@@ -51,6 +51,11 @@ async def settings_page():
     return await render_template("settings.html")
 
 
+@app.route("/neural")
+async def neural_page():
+    return await render_template("neural.html")
+
+
 @app.route("/prompts")
 async def prompts_page():
     return await render_template("prompts.html")

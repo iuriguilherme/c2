@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Neural Management</title>
+<style>
+  body { font-family: monospace; background: #0a0a0a; color: #0f0; margin: 0; padding: 20px; }
+  h1 { color: #0f0; font-size: 1.2rem; }
+  table { border-collapse: collapse; width: 100%; margin-top: 16px; }
+  th, td { border: 1px solid #1a1a1a; padding: 6px 10px; text-align: left; }
+  th { color: #888; font-weight: normal; }
+  td { color: #ccc; }
+  .section { margin-top: 40px; border-top: 1px solid #333; padding-top: 20px; }
+  input, button { background: #1a1a1a; color: #0f0; border: 1px solid #333; padding: 4px 8px; font-family: monospace; }
+  button:hover { background: #333; cursor: pointer; }
+  select { background: #1a1a1a; color: #0f0; border: 1px solid #333; padding: 4px 8px; font-family: monospace; }
+  .nav { margin-bottom: 20px; }
+  .nav a { color: #0f0; text-decoration: none; border: 1px solid #333; padding: 4px 8px; background: #1a1a1a; }
+  .nav a:hover { background: #333; }
+  .chip { display: inline-block; padding: 2px 6px; margin: 2px; border: 1px solid #0f0; background: #040; border-radius: 4px; font-size: 0.85em; }
+</style>
+</head>
+<body>
+<div class="nav">
+  <a href="/">&larr; Back to Simulation</a>
+</div>
+<h1>Neural Management</h1>
+
+<div class="section">
+  <h2>Neuron Profiles</h2>
+  <div style="margin-bottom: 20px;">
+    <strong>Spawn Templates</strong>
+    <table>
+      <thead>
+        <tr><th>ID</th><th>Name</th><th>Description</th><th>Activation Function</th><th>Neurons</th><th>Default</th><th>Action</th></tr>
+      </thead>
+      <tbody id="profile-list"></tbody>
+    </table>
+  </div>
+
+  <div style="margin-bottom: 20px;">
+    <strong>Add / Update Profile</strong><br>
+    <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 10px; max-width: 600px;">
+      <input type="text" id="prof-id" placeholder="ID (e.g. standard_scout)">
+      <input type="text" id="prof-name" placeholder="Name">
+      <input type="text" id="prof-desc" placeholder="Description">
+      <label>Activation Function:
+        <select id="prof-act">
+          <option value="tanh">Tanh</option>
+          <option value="sigmoid">Sigmoid</option>
+          <option value="relu">ReLU</option>
+        </select>
+      </label>
+      <label>Neurons (ctrl+click to multi-select):
+        <select id="prof-neurons" multiple style="height: 120px;">
+          <!-- Populated from pool -->
+        </select>
+      </label>
+      <label><input type="checkbox" id="prof-default"> Set as Default Profile</label>
+      <button onclick="saveProfile()" id="btn-save-profile">Save Profile</button>
+    </div>
+    <span id="profile-status" style="margin-left: 10px; color: #aaa;"></span>
+  </div>
+</div>
+
+<div class="section">
+  <h2>Neuron Pool</h2>
+  <div style="margin-bottom: 20px;">
+    <strong>Available Neurons (Engine Supported)</strong>
+    <table>
+      <thead>
+        <tr><th>Type</th><th>Name</th><th>Category</th><th>Description</th></tr>
+      </thead>
+      <tbody id="neuron-pool-list"></tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+const API_URL = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1"
+    ? "http://localhost:8000"
+    : window.location.origin.replace("5000", "8000");
+
+const state = {
+  neurons: [],
+  profiles: []
+};
+
+async function loadData() {
+  await Promise.all([loadNeuronPool(), loadProfiles()]);
+}
+
+async function loadNeuronPool() {
+  try {
+    const r = await fetch(`${API_URL}/neurons`);
+    if (!r.ok) throw new Error(await r.text());
+    state.neurons = await r.json();
+    renderNeuronPool();
+    populateNeuronSelect();
+  } catch (e) {
+    console.error("Failed to load neurons", e);
+  }
+}
+
+function renderNeuronPool() {
+  const tbody = document.getElementById('neuron-pool-list');
+  tbody.innerHTML = state.neurons.map(n =>
+    `<tr>
+      <td>${n.neuron_type}</td>
+      <td>${n.name}</td>
+      <td>${n.category}</td>
+      <td>${n.description}</td>
+    </tr>`
+  ).join('');
+}
+
+function populateNeuronSelect() {
+  const sel = document.getElementById('prof-neurons');
+  sel.innerHTML = state.neurons.map(n =>
+    `<option value="${n.neuron_type}">${n.name} (${n.category})</option>`
+  ).join('');
+}
+
+async function loadProfiles() {
+  try {
+    const r = await fetch(`${API_URL}/neurons/profiles`);
+    if (!r.ok) throw new Error(await r.text());
+    state.profiles = await r.json();
+    renderProfiles();
+  } catch (e) {
+    console.error("Failed to load profiles", e);
+  }
+}
+
+function renderProfiles() {
+  const tbody = document.getElementById('profile-list');
+  tbody.innerHTML = state.profiles.map(p =>
+    `<tr>
+      <td>${p.id}</td>
+      <td>${p.name}</td>
+      <td>${p.description}</td>
+      <td>${p.activation_function}</td>
+      <td>${p.neurons.map(n => `<span class="chip">${n}</span>`).join('')}</td>
+      <td>${p.is_default ? '✅' : ''}</td>
+      <td>
+        <button onclick="editProfile('${p.id}')">Edit</button>
+        <button onclick="deleteProfile('${p.id}')" style="color:red; border-color:#500;">Delete</button>
+      </td>
+    </tr>`
+  ).join('');
+}
+
+function editProfile(id) {
+  const p = state.profiles.find(x => x.id === id);
+  if (!p) return;
+  document.getElementById('prof-id').value = p.id;
+  document.getElementById('prof-name').value = p.name;
+  document.getElementById('prof-desc').value = p.description;
+  document.getElementById('prof-act').value = p.activation_function;
+  document.getElementById('prof-default').checked = p.is_default;
+  
+  const sel = document.getElementById('prof-neurons');
+  for (let i = 0; i < sel.options.length; i++) {
+    sel.options[i].selected = p.neurons.includes(sel.options[i].value);
+  }
+}
+
+async function saveProfile() {
+  const id = document.getElementById('prof-id').value.trim();
+  const name = document.getElementById('prof-name').value.trim();
+  const desc = document.getElementById('prof-desc').value.trim();
+  const act = document.getElementById('prof-act').value;
+  const is_def = document.getElementById('prof-default').checked;
+  
+  const sel = document.getElementById('prof-neurons');
+  const selectedNeurons = [];
+  for (let i = 0; i < sel.options.length; i++) {
+    if (sel.options[i].selected) selectedNeurons.push(sel.options[i].value);
+  }
+
+  if (!id || !name || selectedNeurons.length === 0) {
+    alert("Please fill in ID, Name, and select at least one neuron.");
+    return;
+  }
+
+  const status = document.getElementById('profile-status');
+  status.textContent = "Saving...";
+
+  try {
+    const r = await fetch(`${API_URL}/neurons/profiles`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id: id,
+        name: name,
+        description: desc,
+        activation_function: act,
+        neurons: selectedNeurons,
+        is_default: is_def
+      })
+    });
+    if (!r.ok) throw new Error(await r.text());
+    status.textContent = "Saved!";
+    status.style.color = "#0f0";
+    setTimeout(() => status.textContent = "", 3000);
+    loadProfiles();
+  } catch (e) {
+    status.textContent = "Error: " + e.message;
+    status.style.color = "red";
+  }
+}
+
+async function deleteProfile(id) {
+  if (!confirm(`Delete profile ${id}?`)) return;
+  try {
+    const r = await fetch(`${API_URL}/neurons/profiles/${encodeURIComponent(id)}`, {
+      method: 'DELETE'
+    });
+    if (!r.ok) throw new Error(await r.text());
+    loadProfiles();
+  } catch (e) {
+    alert(`Error deleting profile: ${e.message}`);
+  }
+}
+
+loadData();
+</script>
+</body>
+</html>

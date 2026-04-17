@@ -173,36 +173,6 @@
   </div>
 </div>
 
-<div class="section">
-  <h2>Neuron Pool Management</h2>
-  <div style="margin-bottom: 20px;">
-    <strong>Available Neurons</strong>
-    <table>
-      <thead>
-        <tr><th>Type</th><th>Name</th><th>Category</th><th>Description</th><th>Action</th></tr>
-      </thead>
-      <tbody id="neuron-pool-list"></tbody>
-    </table>
-  </div>
-
-  <div style="margin-bottom: 20px;">
-    <strong>Add / Update Neuron</strong><br>
-    <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px;">
-      <input type="text" id="neuron-type" placeholder="Type (e.g. speed)">
-      <input type="text" id="neuron-name" placeholder="Name">
-      <select id="neuron-category">
-        <option value="sensory">sensory</option>
-        <option value="motor">motor</option>
-        <option value="reproductive">reproductive</option>
-        <option value="interneuron">interneuron</option>
-      </select>
-      <input type="text" id="neuron-desc" placeholder="Description" style="width: 300px;">
-      <button onclick="saveNeuron()" id="btn-save-neuron">Save Neuron</button>
-    </div>
-    <span id="neuron-status" style="margin-left: 10px; color: #aaa;"></span>
-  </div>
-</div>
-
 <script>
 const API_URL = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1"
     ? "http://localhost:8000"
@@ -730,7 +700,6 @@ function loadAllSettings() {
   loadGlobalSettings();
   loadORSettings();
   loadLMSettings();
-  loadNeuronPool();
 }
 
 // ── Startup ────────────────────────────────────────────────────────

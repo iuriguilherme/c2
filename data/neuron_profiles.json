@@ -1,0 +1,18 @@
+[
+  {
+    "id": "default",
+    "name": "Default Profile",
+    "description": "Standard balanced entity.",
+    "neurons": [
+      "proximity",
+      "signal_receiver",
+      "locomotion",
+      "signal_emitter",
+      "divide",
+      "memory_cell",
+      "cortex_input_receiver"
+    ],
+    "activation_function": "tanh",
+    "is_default": true
+  }
+]

@@ -58,5 +58,15 @@
     "mutation_rate": 0.15,
     "mutation_std": 20.0,
     "dominance_default": 0.5
+  },
+  {
+    "gene_type": "cognitive_clarity",
+    "description": "Clarity of the system prompt representation of the world",
+    "min_value": 0.0,
+    "max_value": 1.0,
+    "default_value": 1.0,
+    "mutation_rate": 0.1,
+    "mutation_std": 0.2,
+    "dominance_default": 0.5
   }
 ]

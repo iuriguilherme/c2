@@ -1,44 +1,54 @@
-from fastapi import APIRouter, HTTPException
-from neural.pool import NeuronPool, _DATA_PATH
-from neural.models import NeuronDefinition, NeuronType
-import json
+from fastapi import APIRouter, HTTPException, Depends
+from neural.models import NeuronDefinition, NeuronType, NeuronProfile
+from storage.redis import RedisPoolRepository
 
 router = APIRouter(prefix="/neurons", tags=["neurons"])
-_pool = NeuronPool.load()
 
+_redis_client = None
 
-def save_pool(pool: NeuronPool):
-    """Save the current pool definitions back to the JSON file."""
-    data = [defn.model_dump() for defn in pool.definitions.values()]
-    with open(_DATA_PATH, "w") as f:
-        json.dump(data, f, indent=2)
+def set_redis_client(client) -> None:
+    global _redis_client
+    _redis_client = client
 
+def get_redis():
+    if _redis_client is None:
+        raise HTTPException(status_code=503, detail="Storage not ready")
+    return _redis_client
 
 @router.get("/", response_model=list[NeuronDefinition])
-async def list_neurons() -> list[NeuronDefinition]:
-    return list(_pool.definitions.values())
+async def list_neurons(redis=Depends(get_redis)) -> list[NeuronDefinition]:
+    repo = RedisPoolRepository(redis)
+    data = await repo.get_all_neurons()
+    return [NeuronDefinition.model_validate(d) for d in data.values()]
 
+@router.get("/profiles", response_model=list[NeuronProfile])
+async def list_profiles(redis=Depends(get_redis)) -> list[NeuronProfile]:
+    repo = RedisPoolRepository(redis)
+    data = await repo.get_all_profiles()
+    return [NeuronProfile.model_validate(d) for d in data.values()]
 
-@router.post("/", response_model=NeuronDefinition)
-async def add_or_update_neuron(neuron: NeuronDefinition) -> NeuronDefinition:
-    """Add a new neuron definition or update an existing one."""
-    _pool.definitions[neuron.neuron_type] = neuron
+@router.post("/profiles", response_model=NeuronProfile)
+async def add_or_update_profile(profile: NeuronProfile, redis=Depends(get_redis)) -> NeuronProfile:
+    repo = RedisPoolRepository(redis)
     try:
-        save_pool(_pool)
-        return neuron
+        if profile.is_default:
+            # Unset is_default on others
+            data = await repo.get_all_profiles()
+            for p_id, p_data in data.items():
+                if p_data.get("is_default") and p_id != profile.id:
+                    p_data["is_default"] = False
+                    await repo.save_profile(p_id, p_data)
+                    
+        await repo.save_profile(profile.id, profile.model_dump())
+        return profile
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to save neuron pool: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to save profile: {e}")
 
-
-@router.delete("/{neuron_type}")
-async def delete_neuron(neuron_type: NeuronType):
-    """Delete a neuron definition from the pool."""
-    if neuron_type not in _pool.definitions:
-        raise HTTPException(status_code=404, detail="Neuron type not found")
-    
-    del _pool.definitions[neuron_type]
+@router.delete("/profiles/{profile_id}")
+async def delete_profile(profile_id: str, redis=Depends(get_redis)):
+    repo = RedisPoolRepository(redis)
     try:
-        save_pool(_pool)
-        return {"status": "ok", "message": f"Neuron {neuron_type} deleted"}
+        await repo.delete_profile(profile_id)
+        return {"status": "ok", "message": f"Profile {profile_id} deleted"}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to save neuron pool: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to delete profile: {e}")

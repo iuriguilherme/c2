@@ -8,10 +8,12 @@ class Entity:
     id: str
     genome: Genome
     brain: Brain
-    system_prompt: str
+    base_system_prompt: str
     user_prompt: str
     model: str
     provider_name: str
+    neural_system_prompt: str = ""
+    learned_system_prompt: str = ""
     position_x: float = 0.0
     position_y: float = 0.0
     age: int = 0
@@ -23,6 +25,16 @@ class Entity:
     last_manifest: str = ""
     last_activations: str = ""
     last_llm_exchange: str = ""
+    cortex_signal: float = 0.0
+
+    @property
+    def system_prompt(self) -> str:
+        parts = [self.base_system_prompt]
+        if self.learned_system_prompt:
+            parts.append(self.learned_system_prompt)
+        if self.neural_system_prompt:
+            parts.append(self.neural_system_prompt)
+        return "\n\n".join(parts)
 
     def should_think(self, current_tick: int) -> bool:
         return (current_tick - self.last_think_tick) >= self.think_interval
@@ -35,7 +47,8 @@ class Entity:
             "position_y": str(self.position_y),
             "age": str(self.age),
             "alive": str(self.alive),
-            "system_prompt": self.system_prompt,
+            "base_system_prompt": self.base_system_prompt,
+            "learned_system_prompt": self.learned_system_prompt,
             "user_prompt": self.user_prompt,
             "model": self.model,
             "provider": self.provider_name,
@@ -46,4 +59,5 @@ class Entity:
             "last_manifest": self.last_manifest,
             "last_activations": self.last_activations,
             "last_llm_exchange": self.last_llm_exchange,
+            "cortex_signal": str(self.cortex_signal),
         }

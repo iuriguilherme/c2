@@ -30,6 +30,7 @@ class EntityAddRequest(BaseModel):
     provider: Optional[str] = None
     model: Optional[str] = None
     system_prompt: Optional[str] = None
+    neuron_profile: Optional[str] = None
 
 
 @router.post("/")
@@ -46,14 +47,34 @@ async def add_entity(
     from agents.providers.anthropic import AnthropicProvider
     from agents.providers.lmstudio import LMStudioProvider
     from simulation.factory import EntityFactory
+    from storage.redis import RedisPoolRepository
     import random
     import os
     import json
 
     repo = RedisEntityRepository(redis)
+    pool_repo = RedisPoolRepository(redis)
     gene_pool = GenePool.load()
-    neuron_pool = NeuronPool.load()
+    
+    # Load all neurons to construct the pool object
+    raw_neurons = await pool_repo.get_all_neurons()
+    from neural.models import NeuronDefinition
+    pool_defs = {k: NeuronDefinition.model_validate(v) for k, v in raw_neurons.items()}
+    neuron_pool = NeuronPool(pool_defs)
+    
     factory = EntityFactory(gene_pool=gene_pool, neuron_pool=neuron_pool)
+    
+    # Process profile
+    profile_data = None
+    profiles = await pool_repo.get_all_profiles()
+    if req.neuron_profile and req.neuron_profile in profiles:
+        profile_data = profiles[req.neuron_profile]
+    else:
+        # Fallback to default
+        for p in profiles.values():
+            if p.get("is_default"):
+                profile_data = p
+                break
 
     # Re-use pool setup logic
     _root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -141,6 +162,7 @@ async def add_entity(
         model_assignment=assignment,
         rng=r,
         system_prompt=sys_prompt,
+        profile=profile_data,
     )
 
     void_w = float(os.environ.get("VOID_WIDTH", settings.get("void_width", 1000.0)))
