@@ -1,7 +1,7 @@
 ---
 title: AGI Entity Simulation V1 — Architecture and Design Patterns
 date: 2026-04-11
-last_updated: 2026-04-12
+last_updated: 2026-04-16
 type: knowledge
 problem_type: architecture_decision
 track: knowledge
@@ -17,6 +17,7 @@ tags:
   - capability-manifest
   - fastapi
   - fakeredis
+  - observability
 applies_when:
   - Building a simulation loop that must advance world state synchronously while dispatching slow LLM or external calls asynchronously
   - Agents need capability gating derived from internal state (neural wiring, permissions)
@@ -68,10 +69,11 @@ The FastAPI lifespan attempts a real Redis `ping()`. On failure, it falls back t
 
 | Key pattern | Structure | Purpose |
 |---|---|---|
-| `entity:{id}` | Redis Hash | Full entity state — all fields stringified |
+| `entity:{id}` | Redis Hash | Full entity state — includes `last_manifest`, `last_activations`, `last_llm_exchange` |
 | `archive:{id}` | Redis Hash | Snapshot of entity at death |
 | `living_entities` | Redis Set | Membership roster for `list_living()` |
 | `ticks:main` | Redis Stream (XADD) | Ordered tick log; readable by web UI |
+| `interactions:main` | Redis Stream (XADD) | Global log of birth, death, signal, and movement events; `MAXLEN 1000` |
 
 `save()` atomically updates the hash and living set. `archive()` copies the entity hash to the archive key and removes the live key.
 
@@ -81,7 +83,13 @@ The FastAPI lifespan attempts a real Redis `ping()`. On failure, it falls back t
 1. Drop messages older than 10 ticks (`ticks_ago > 10`).
 2. If more than 20 messages remain, keep the 20 most recent.
 
-Without eviction, a large broadcasting population produces unbounded inbox growth in memory and in every subsequent manifest, increasing LLM token cost and risking OOM.
+### Observability Architecture
+
+To overcome the "black box" nature of LLM entities, the system implements a multi-tier observability strategy:
+
+1. **Granular Storage**: The `Entity` hash stores the most recent `CapabilityManifest` (JSON), raw neuron activations (float list), and the full `last_llm_exchange` (JSON object with system/user prompts and raw response).
+2. **Capped Interaction Logging**: Transient social events (signals, movement > 1.0, births, deaths) are published to the `interactions:main` Redis stream. The stream uses `MAXLEN 1000` with approximate capping to maintain history without unbounded memory growth.
+3. **API Differentiation**: To maintain performance, bulk state APIs (overview list) use `HMGET` via `load_many_partial` in the repository to skip the large observability strings, while detail APIs fetch the full hash.
 
 ---
 
@@ -91,9 +99,9 @@ Without eviction, a large broadcasting population produces unbounded inbox growt
 
 - **Capability gating**: The LLM can only choose actions that `get_available_actions()` exposes. An action the entity's brain hasn't wired is invisible to the LLM and silently rejected if attempted. This prevents hallucinated actions from corrupting world state.
 
-- **Fakeredis fallback**: CI runs, developer demos, and quick iteration work identically to production without any code change. The warning log ensures operators never silently run production on volatile in-memory storage.
+- **Observability**: Real-time logging of interactions and internal brain state allows for empirical verification of social evolution and neural wiring effectiveness.
 
-- **503 guard**: FastAPI's lifespan completion is not atomic with request acceptance. A request arriving before lifespan finishes (e.g., slow startup probe) would get an unhelpful `AttributeError` from `RedisEntityRepository(None)`. The guard converts this to a clean 503.
+- **Fakeredis fallback**: CI runs, developer demos, and quick iteration work identically to production without any code change. The warning log ensures operators never silently run production on volatile in-memory storage.
 
 ---
 
@@ -102,13 +110,9 @@ Without eviction, a large broadcasting population produces unbounded inbox growt
 Apply this architecture when:
 - A simulation or game loop must advance world state synchronously while dispatching slow external calls asynchronously without stalling the tick.
 - Agents need capability gating derived from internal state rather than static roles.
+- Real-time logging of entity interactions is needed without affecting tick performance.
+- Internal agent state (prompts/brain state) must be inspectable for debugging or analysis.
 - A service must be runnable without infrastructure for CI/dev, while production-ready with real dependencies.
-- Multiple LLM providers must be interchangeable at runtime per-entity with graceful degradation.
-- Genetic/evolutionary state must survive entity death and be queryable independently of living state.
-
-Do not apply the hybrid tick model when:
-- Action latency must be zero (real-time games require a different concurrency model).
-- LLM responses must be validated against world state that changes within the same tick window (requires a transaction model, not a cache model).
 
 ---
 
@@ -117,24 +121,23 @@ Do not apply the hybrid tick model when:
 ### Hybrid Tick Core (`simulation/tick.py`)
 
 ```python
-async def tick(self, tick: int) -> None:
-    entity_ids = await self._repo.list_living()
-    tasks = [self._process_entity(eid, tick) for eid in entity_ids]
-    await asyncio.gather(*tasks, return_exceptions=True)  # never cancels on one failure
-    self._void.age_messages()
-    await self._stream.publish_tick(tick=tick, entity_count=len(entity_ids))
-
 async def _process_entity(self, entity_id: str, tick: int) -> None:
-    # Load entity state from Redis
-    data = await self._repo.load(entity_id)
-    entity = self._load_entity(data)
-
-    # Phase A: Execute action decided LAST tick
-    if entity.cached_action and entity.cached_action_tick >= 0:
-        await self._execute_action(entity, entity.cached_action)
-    # Phase B: Think for NEXT tick
+    # ... load and age check ...
     if entity.should_think(tick):
+        manifest = entity.brain.generate_manifest(...)
+        entity.last_manifest = manifest.model_dump_json()
+        entity.last_activations = json.dumps([n.activation for n in entity.brain.neurons])
+
         raw = await self._collect_llm_response(...)
+        
+        # Capture full exchange for observability
+        entity.last_llm_exchange = json.dumps({
+            "system": entity.system_prompt,
+            "user": entity.user_prompt or "...",
+            "manifest": manifest.model_dump(),
+            "response": raw
+        })
+
         output = AgentOutput.parse_llm_response(raw)
         if output and output.is_valid_for_manifest(manifest):
             entity.cached_action = raw
@@ -145,16 +148,19 @@ async def _process_entity(self, entity_id: str, tick: int) -> None:
     await self._repo.save(entity_id, entity.to_storage_dict())
 ```
 
-### is_valid_for_manifest Fix (`agents/output.py`)
+### Optimized Bulk Load (`storage/redis.py`)
 
-Before — `AttributeError` if LLM returns `{"user_prompt_update": "..."}` with no `action`:
 ```python
-def is_valid_for_manifest(self, manifest: CapabilityManifest) -> bool:
-    available = manifest.get_available_actions()
-    return self.action.type in available  # crash if self.action is None
+async def load_many_partial(self, entity_ids: list[str], fields: list[str]) -> list[dict]:
+    pipe = self._r.pipeline(transaction=False)
+    for eid in entity_ids:
+        pipe.hmget(f"entity:{eid}", *fields)
+    results = await pipe.execute()
+    # ... map results back to dicts ...
 ```
 
-After:
+### is_valid_for_manifest Fix (`agents/output.py`)
+
 ```python
 def is_valid_for_manifest(self, manifest: CapabilityManifest) -> bool:
     if self.action is None:
@@ -163,103 +169,20 @@ def is_valid_for_manifest(self, manifest: CapabilityManifest) -> bool:
     return self.action.type in available
 ```
 
-`False` means "don't update the cache" — the entity keeps its previous `cached_action`. It is not an error.
-
-### Lifespan + Fakeredis Fallback (`api/main.py`)
-
-```python
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    global redis_client
-    try:
-        redis_url = os.environ.get("REDIS_URL", "redis://localhost:6379")
-        redis_client = Redis.from_url(redis_url)
-        await redis_client.ping()
-    except Exception as exc:
-        logger.warning(
-            "Redis unavailable (%s: %s) — falling back to in-process fakeredis. "
-            "All entity data will be lost on restart.",
-            type(exc).__name__, exc,
-        )
-        redis_client = fakeredis.aioredis.FakeRedis()
-    set_redis_client(redis_client)  # single injection point for all routes
-    yield
-    if redis_client is not None:
-        await redis_client.aclose()
-```
-
-### 503 Guard + entity_id Validation (`api/routes/entities.py`)
-
-```python
-# Note: _redis_client type is Redis | FakeRedis; add a type alias for cleaner annotations
-def get_redis() -> "Redis | FakeRedis":
-    if _redis_client is None:
-        raise HTTPException(status_code=503, detail="Storage not ready")
-    return _redis_client
-
-@router.get("/archived/{entity_id}")
-async def get_archived_entity(
-    entity_id: str = Path(..., pattern=r"^[\w-]{1,128}$"),  # blocks colon-injection
-    redis=Depends(get_redis),
-) -> dict:
-    repo = RedisEntityRepository(redis)
-    data = await repo.load_archive(entity_id)
-    if data is None:
-        raise HTTPException(status_code=404, detail="Archived entity not found")
-    return data
-```
-
-Three independent failure modes: 422 (invalid ID format), 503 (storage not ready), 404 (not found) — each handled at the correct layer.
-
-### Capability Manifest (`neural/models.py`)
-
-```python
-class CapabilityManifest(BaseModel):
-    model_config = ConfigDict(extra="allow")  # extensible for future neuron types
-    schema_version: Literal["1.0"] = "1.0"
-    agent_id: str
-    tick: int = Field(ge=0)
-    perception: dict[str, ProximityPerception | SignalReceiverPerception] = {}
-    actions: dict[str, ActionCapability] = {}
-    memory: MemoryState = Field(default_factory=lambda: MemoryState(available=False))
-
-    def get_available_actions(self) -> list[str]:
-        return [name for name, cap in self.actions.items() if cap.available]
-```
-
-`get_available_actions()` is the sole source of truth for what actions an entity may choose. Adding a new neuron type in V2 means adding a new `ActionCapability` entry — no changes to `CapabilityManifest` needed.
-
-### Message Eviction (`environment/void.py`)
-
-```python
-def age_messages(self) -> None:
-    for entity_id, msgs in self._message_inbox.items():
-        for m in msgs:
-            m["ticks_ago"] += 1
-        # Keep messages with ticks_ago <= 10 (evict those aged past 10 ticks)
-        msgs[:] = [m for m in msgs if m["ticks_ago"] <= 10]
-        # Cap at 20 most recent
-        if len(msgs) > 20:
-            msgs.sort(key=lambda msg: msg["ticks_ago"])
-            msgs[:] = msgs[:20]
-```
-
-`msgs[:] = ...` mutates the list in-place — required because the dict value is a list reference; `msgs = [...]` would create a new list the dict no longer points to.
-
 ---
 
 ## Key Files
 
 | File | Role |
 |---|---|
-| `simulation/tick.py` | Hybrid tick engine — the central orchestration logic |
+| `simulation/tick.py` | Hybrid tick engine and interaction event publisher |
+| `storage/redis.py` | Redis repository, tick stream, and interaction stream (`MAXLEN` capping) |
+| `web/templates/index.html` | Tabbed entity visualization and interaction log panel |
 | `agents/output.py` | AgentOutput, is_valid_for_manifest, parse_llm_response |
 | `neural/models.py` | CapabilityManifest and sub-models — the neural/agent interface contract |
 | `agents/protocol.py` | LLMProvider Protocol and error hierarchy |
-| `agents/providers/anthropic.py` | Reference provider implementation |
 | `api/main.py` | Lifespan, fakeredis fallback, router wiring |
 | `api/routes/entities.py` | 503 guard, entity_id validation, DI pattern |
-| `storage/redis.py` | Redis repository and tick stream; key naming conventions |
 | `environment/void.py` | VoidEnvironment, message inbox, age_messages eviction |
 | `simulation/factory.py` | EntityFactory — genome + neuron pool + model assignment → Entity |
 | `docs/plans/archive/2026-03-26-001-feat-agi-entity-simulation-v1-plan.md` | Full design rationale, resolved decisions, requirements trace |
