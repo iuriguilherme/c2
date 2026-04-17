@@ -46,9 +46,9 @@ async def index():
     return await render_template("index.html")
 
 
-@app.route("/settings")
+@app.route("/llm-providers")
 async def settings_page():
-    return await render_template("settings.html")
+    return await render_template("llm_providers.html")
 
 
 @app.route("/neural")
