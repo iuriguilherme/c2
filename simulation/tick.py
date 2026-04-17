@@ -10,7 +10,7 @@ from neural.pool import NeuronPool
 from neural.brain import Brain
 from simulation.entity import Entity
 from simulation.archive import EntityArchive
-from storage.redis import RedisEntityRepository, RedisTickStream, RedisInteractionStream
+from storage.redis import RedisEntityRepository, RedisTickStream, RedisInteractionStream, RedisLLMLogStream
 
 logger = logging.getLogger(__name__)
 
@@ -23,6 +23,7 @@ class TickEngine:
         interaction_stream: RedisInteractionStream,
         void: VoidEnvironment,
         model_pool: ModelPool,
+        llm_log_stream: RedisLLMLogStream,
         neuron_pool: NeuronPool | None = None,
         reproduction_handler=None,
         spawn_rate_cap_percent: float = 5.0,
@@ -32,6 +33,7 @@ class TickEngine:
         self._interaction_stream = interaction_stream
         self._void = void
         self._model_pool = model_pool
+        self._llm_log_stream = llm_log_stream
         self._neuron_pool = neuron_pool or NeuronPool.load()
         self._reproduction_handler = reproduction_handler
         self._spawn_rate_cap_percent = max(0.0, min(100.0, spawn_rate_cap_percent))
@@ -207,6 +209,8 @@ class TickEngine:
     async def _collect_llm_response(
         self, provider, model: str, system_prompt: str, user_prompt: str, manifest_json: str
     ) -> str:
+        import time
+        start_time = time.time()
         chunks = []
         try:
             async for chunk in provider.generate(
@@ -216,8 +220,25 @@ class TickEngine:
                 manifest_json=manifest_json,
             ):
                 chunks.append(chunk)
+            
+            duration_ms = int((time.time() - start_time) * 1000)
+            await self._llm_log_stream.publish_log(
+                provider=provider.__class__.__name__,
+                model=model,
+                success=True,
+                duration_ms=duration_ms,
+                details="OK"
+            )
         except Exception as e:
             logger.warning("LLM call failed for model %s: %s", model, e)
+            duration_ms = int((time.time() - start_time) * 1000)
+            await self._llm_log_stream.publish_log(
+                provider=provider.__class__.__name__,
+                model=model,
+                success=False,
+                duration_ms=duration_ms,
+                details=str(e)
+            )
         return "".join(chunks)
 
     async def _execute_action(self, entity: Entity, cached_raw: str) -> None:

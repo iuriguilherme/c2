@@ -79,7 +79,7 @@
 <div class="nav">
   <a href="/">&larr; Back to Simulation</a>
 </div>
-<h1>AGI Entity Simulation Settings</h1>
+<h1>LLM Providers</h1>
 <div id="api-status" class="disconnected">⏳ Checking API connection...</div>
 
 <div class="section">
@@ -694,17 +694,66 @@ async function deleteModel(name) {
   }
 }
 
+async function loadLlmLogs() {
+  const url = `${API_URL}/settings/llm-logs`;
+  try {
+    const r = await fetch(url);
+    if (!r.ok) throw new Error(await r.text());
+    const logs = await r.json();
+    renderLlmLogs(logs);
+  } catch (e) {
+    console.error("Failed to load LLM logs", e);
+  }
+}
+
+function renderLlmLogs(logs) {
+  const tbody = document.getElementById('llm-usage-log');
+  if (logs.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: #555;">No logs yet</td></tr>';
+    return;
+  }
+  
+  tbody.innerHTML = logs.map(log => {
+    const time = new Date(log.timestamp).toLocaleTimeString();
+    const isSuccess = log.success === 'True';
+    const statusColor = isSuccess ? '#0f0' : '#f44';
+    const rowStyle = isSuccess ? '' : 'background: #1a0404;';
+    return `
+      <tr style="${rowStyle}">
+        <td style="color: #666; font-size: 0.8rem;">${time}</td>
+        <td>${log.provider}</td>
+        <td>${log.model}</td>
+        <td style="color: ${statusColor}">${isSuccess ? 'OK' : 'ERROR'}</td>
+        <td style="font-size: 0.85rem; color: ${isSuccess ? '#ccc' : '#f44'}">${log.details} (${log.duration_ms}ms)</td>
+      </tr>
+    `;
+  }).join('');
+}
+
+async function clearLlmErrors() {
+  if (!confirm("Clear all error logs?")) return;
+  try {
+    const r = await fetch(`${API_URL}/settings/llm-logs/errors`, { method: 'DELETE' });
+    if (!r.ok) throw new Error(await r.text());
+    loadLlmLogs();
+  } catch (e) {
+    alert("Failed to clear errors: " + e.message);
+  }
+}
+
 function loadAllSettings() {
   loadOllamaModels();
   loadSettings();
   loadGlobalSettings();
   loadORSettings();
   loadLMSettings();
+  loadLlmLogs();
 }
 
 // ── Startup ────────────────────────────────────────────────────────
 initialConnect(); // checks API health, retries, then loads settings when connected
 setInterval(checkApiHealth, 15000); // periodic health check
+setInterval(loadLlmLogs, 2000); // poll logs every 2s
 </script>
 </body>
 </html>

@@ -22,7 +22,7 @@ services:
     environment:
       - REDIS_URL=redis://redis:6379
       - MONGO_URL=mongodb://mongo:27017
-      - OLLAMA_BASE_URL=http://ollama:11434
+      - OLLAMA_BASE_URL=http://ollama:11435
     depends_on:
       - redis
       - mongo
@@ -39,7 +39,7 @@ services:
     environment:
       - REDIS_URL=redis://redis:6379
       - MONGO_URL=mongodb://mongo:27017
-      - OLLAMA_BASE_URL=http://ollama:11434
+      - OLLAMA_BASE_URL=http://ollama:11435
     depends_on:
       - redis
       - mongo
@@ -54,7 +54,7 @@ services:
     environment:
       - REDIS_URL=redis://redis:6379
       - MONGO_URL=mongodb://mongo:27017
-      - OLLAMA_BASE_URL=http://ollama:11434
+      - OLLAMA_BASE_URL=http://ollama:11435
       - INITIAL_ENTITIES=5
       - TICK_INTERVAL_SEC=2.0
       - VOID_WIDTH=1000.0
@@ -70,9 +70,9 @@ services:
   ollama:
     image: ollama/ollama:latest
     ports:
-      - "11434:11434"
+      - "11435:11434"
     volumes:
-      - ${OLLAMA_MODELS_DIR:-./ollama_models}:/root/.ollama
+      - ${OLLAMA_MODELS_DIR:-./ollama/models}:/root/.ollama/models
 
 volumes:
   redis_data:

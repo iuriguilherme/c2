@@ -59,6 +59,7 @@ async def lifespan(app: FastAPI):
     set_redis_client(redis_client)
     set_simulation_redis_client(redis_client)
     set_neurons_redis_client(redis_client)
+    set_settings_redis_client(redis_client)
 
     try:
         # Seed pool data into Redis if empty
@@ -122,4 +123,6 @@ app.include_router(system_prompts_router)
 
 @app.get("/health")
 async def health() -> dict:
+    return {"status": "ok"}
+ct:
     return {"status": "ok"}

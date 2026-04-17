@@ -3,10 +3,19 @@ import logging
 import os
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
+from storage.redis import RedisLLMLogStream
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/settings", tags=["settings"])
+
+_redis_client = None
+
+
+def set_redis_client(client):
+    global _redis_client
+    _redis_client = client
+
 
 _ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 SETTINGS_FILE = os.path.join(_ROOT, "settings.json")
@@ -54,3 +63,20 @@ def update_global_settings(settings: GlobalSettingsModel):
         return {"status": "ok"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to write settings: {e}")
+
+
+@router.get("/llm-logs")
+async def get_llm_logs(count: int = 100):
+    if not _redis_client:
+        return []
+    stream = RedisLLMLogStream(_redis_client)
+    return await stream.read_recent(count=count)
+
+
+@router.delete("/llm-logs/errors")
+async def clear_llm_errors():
+    if not _redis_client:
+        return {"status": "error", "message": "Redis not connected"}
+    stream = RedisLLMLogStream(_redis_client)
+    await stream.clear_errors()
+    return {"status": "ok"}

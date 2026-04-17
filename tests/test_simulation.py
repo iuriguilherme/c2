@@ -3,7 +3,7 @@ import random
 
 # ── Storage ──────────────────────────────────────────────────────────────────
 
-from storage.redis import RedisEntityRepository, RedisTickStream
+from storage.redis import RedisEntityRepository, RedisTickStream, RedisInteractionStream, RedisLLMLogStream
 from genetics import GenePool
 from genetics.models import GeneType
 
@@ -301,14 +301,15 @@ async def test_tick_engine_increments_tick(redis):
     mock_pool = MagicMock(spec=ModelPool)
     mock_pool.get_provider.return_value = mock_provider
 
-    from storage.redis import RedisInteractionStream
     interaction_stream = RedisInteractionStream(redis)
+    llm_log_stream = RedisLLMLogStream(redis)
     engine = TickEngine(
         repo=repo,
         stream=stream,
         interaction_stream=interaction_stream,
         void=void,
         model_pool=mock_pool,
+        llm_log_stream=llm_log_stream,
     )
     entity = _make_entity("e-1", think_interval=1)
     entity.position_x = 500.0
@@ -335,14 +336,15 @@ async def test_tick_engine_ages_entity(redis):
     mock_provider.generate = _gen
     mock_pool.get_provider.return_value = mock_provider
 
-    from storage.redis import RedisInteractionStream
     interaction_stream = RedisInteractionStream(redis)
+    llm_log_stream = RedisLLMLogStream(redis)
     engine = TickEngine(
         repo=repo,
         stream=stream,
         interaction_stream=interaction_stream,
         void=void,
         model_pool=mock_pool,
+        llm_log_stream=llm_log_stream,
     )
 
     entity = _make_entity("e-age", think_interval=99)
@@ -383,14 +385,15 @@ async def test_tick_engine_kills_entity_at_lifespan(redis):
     await repo.save("e-old", entity.to_storage_dict())
     void.set_position("e-old", Position(x=0.0, y=0.0))
 
-    from storage.redis import RedisInteractionStream
     interaction_stream = RedisInteractionStream(redis)
+    llm_log_stream = RedisLLMLogStream(redis)
     engine = TickEngine(
         repo=repo,
         stream=stream,
         interaction_stream=interaction_stream,
         void=void,
         model_pool=mock_pool,
+        llm_log_stream=llm_log_stream,
     )
     await engine.tick(tick=4)
 

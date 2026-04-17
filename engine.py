@@ -111,6 +111,7 @@ async def main() -> None:
         interaction_stream=interaction_stream,
         void=void,
         model_pool=model_pool,
+        llm_log_stream=llm_log_stream,
         neuron_pool=neuron_pool,
         reproduction_handler=reproduction_handler,
         spawn_rate_cap_percent=spawn_rate_cap_percent,
@@ -197,4 +198,6 @@ async def main() -> None:
 
 
 if __name__ == "__main__":
+    asyncio.run(main())
+
     asyncio.run(main())

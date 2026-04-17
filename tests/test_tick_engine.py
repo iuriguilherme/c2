@@ -20,7 +20,7 @@ from simulation.entity import Entity
 from simulation.factory import EntityFactory
 from simulation.reproduction import ReproductionHandler
 from simulation.tick import TickEngine
-from storage.redis import RedisEntityRepository, RedisTickStream
+from storage.redis import RedisEntityRepository, RedisTickStream, RedisInteractionStream, RedisLLMLogStream
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -30,12 +30,14 @@ def _make_engine_fixtures(
     void_width: float = 1000.0,
     void_height: float = 1000.0,
 ):
-    """Return (redis, repo, stream, void) — caller owns redis.aclose()."""
+    """Return (redis, repo, stream, interaction_stream, llm_log_stream, void) — caller owns redis.aclose()."""
     redis = fakeredis.aioredis.FakeRedis()
     repo = RedisEntityRepository(redis)
     stream = RedisTickStream(redis)
+    interaction_stream = RedisInteractionStream(redis)
+    llm_log_stream = RedisLLMLogStream(redis)
     void = VoidEnvironment(width=void_width, height=void_height)
-    return redis, repo, stream, void
+    return redis, repo, stream, interaction_stream, llm_log_stream, void
 
 
 def _silent_mock_pool() -> MagicMock:
@@ -87,7 +89,7 @@ async def test_divide_action_calls_spawn_offspring():
     gene_pool = GenePool.load()
     neuron_pool = NeuronPool.load()
 
-    redis, repo, stream, void = _make_engine_fixtures()
+    redis, repo, stream, interaction_stream, llm_log_stream, void = _make_engine_fixtures()
 
     # Build entity with a cached divide action
     entity = _make_entity_with_genome("e-div", gene_pool, neuron_pool, lifespan=100.0)
@@ -100,22 +102,19 @@ async def test_divide_action_calls_spawn_offspring():
 
     # Mock ReproductionHandler.spawn_offspring so we can assert it was called
     mock_repro = MagicMock(spec=ReproductionHandler)
-    future = asyncio.get_event_loop().create_future()
-    future.set_result(entity)  # return value doesn't matter for this test
 
     async def _fake_spawn(parent, tick, rng=None):
         return entity
 
     mock_repro.spawn_offspring = _fake_spawn
 
-    from storage.redis import RedisInteractionStream
-    interaction_stream = RedisInteractionStream(redis)
     engine = TickEngine(
         repo=repo,
         stream=stream,
         interaction_stream=interaction_stream,
         void=void,
         model_pool=_silent_mock_pool(),
+        llm_log_stream=llm_log_stream,
         reproduction_handler=mock_repro,
         spawn_rate_cap_percent=100.0,
     )
@@ -147,7 +146,7 @@ async def test_spawn_rate_cap():
     gene_pool = GenePool.load()
     neuron_pool = NeuronPool.load()
 
-    redis, repo, stream, void = _make_engine_fixtures()
+    redis, repo, stream, interaction_stream, llm_log_stream, void = _make_engine_fixtures()
 
     # Create 100 living entities to get a cap of 5 (5% of 100)
     for i in range(100):
@@ -173,14 +172,13 @@ async def test_spawn_rate_cap():
         return await original(parent, tick, rng=rng)
     mock_repro.spawn_offspring = _tracking_spawn
 
-    from storage.redis import RedisInteractionStream
-    interaction_stream = RedisInteractionStream(redis)
     engine = TickEngine(
         repo=repo,
         stream=stream,
         interaction_stream=interaction_stream,
         void=void,
         model_pool=_silent_mock_pool(),
+        llm_log_stream=llm_log_stream,
         reproduction_handler=mock_repro,
         spawn_rate_cap_percent=5.0,
     )
@@ -216,7 +214,7 @@ async def test_dead_entity_removed_from_void():
     gene_pool = GenePool.load()
     neuron_pool = NeuronPool.load()
 
-    redis, repo, stream, void = _make_engine_fixtures()
+    redis, repo, stream, interaction_stream, llm_log_stream, void = _make_engine_fixtures()
 
     # Entity that will die on tick 1 (age 3 >= lifespan 3 after increment)
     entity = _make_entity_with_genome(
@@ -235,14 +233,13 @@ async def test_dead_entity_removed_from_void():
     await repo.save("e-obs", observer.to_storage_dict())
     void.set_position("e-obs", Position(110.0, 100.0))
 
-    from storage.redis import RedisInteractionStream
-    interaction_stream = RedisInteractionStream(redis)
     engine = TickEngine(
         repo=repo,
         stream=stream,
         interaction_stream=interaction_stream,
         void=void,
         model_pool=_silent_mock_pool(),
+        llm_log_stream=llm_log_stream,
     )
 
     await engine.tick(tick=1)
@@ -268,7 +265,7 @@ async def test_divide_action_no_handler_no_exception():
     gene_pool = GenePool.load()
     neuron_pool = NeuronPool.load()
 
-    redis, repo, stream, void = _make_engine_fixtures()
+    redis, repo, stream, interaction_stream, llm_log_stream, void = _make_engine_fixtures()
 
     entity = _make_entity_with_genome("e-nodiv", gene_pool, neuron_pool, lifespan=100.0)
     entity.cached_action = '{"action": {"type": "divide", "parameters": {}}}'
@@ -278,14 +275,13 @@ async def test_divide_action_no_handler_no_exception():
     await repo.save("e-nodiv", entity.to_storage_dict())
     void.set_position("e-nodiv", Position(500.0, 500.0))
 
-    from storage.redis import RedisInteractionStream
-    interaction_stream = RedisInteractionStream(redis)
     engine = TickEngine(
         repo=repo,
         stream=stream,
         interaction_stream=interaction_stream,
         void=void,
         model_pool=_silent_mock_pool(),
+        llm_log_stream=llm_log_stream,
         reproduction_handler=None,  # explicitly no handler
     )
 
@@ -313,7 +309,7 @@ async def test_integration_two_generation_via_tick():
     gene_pool = GenePool.load()
     neuron_pool = NeuronPool.load()
 
-    redis, repo, stream, void = _make_engine_fixtures()
+    redis, repo, stream, interaction_stream, llm_log_stream, void = _make_engine_fixtures()
 
     factory = EntityFactory(gene_pool=gene_pool, neuron_pool=neuron_pool)
     model_pool = MagicMock(spec=ModelPool)
@@ -337,14 +333,13 @@ async def test_integration_two_generation_via_tick():
         model_pool=model_pool,
     )
 
-    from storage.redis import RedisInteractionStream
-    interaction_stream = RedisInteractionStream(redis)
     engine = TickEngine(
         repo=repo,
         stream=stream,
         interaction_stream=interaction_stream,
         void=void,
         model_pool=model_pool,
+        llm_log_stream=llm_log_stream,
         reproduction_handler=reproduction_handler,
         spawn_rate_cap_percent=100.0,
     )
