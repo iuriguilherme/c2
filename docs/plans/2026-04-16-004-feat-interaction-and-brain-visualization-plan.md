@@ -1,7 +1,7 @@
 ---
 title: feat: Interaction and Brain Visualization
 type: feat
-status: active
+status: completed
 date: 2026-04-16
 origin: docs/brainstorms/2026-04-16-interaction-and-brain-visualization-requirements.md
 ---
