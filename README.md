@@ -11,7 +11,7 @@ A simulation where individual entities evolve genetically, perceive their enviro
 Each entity has three interacting layers:
 
 - **Genetic** — heritable traits (lifespan, brain size, think interval, personality seed) that mutate across asexual reproduction
-- **Neural** — a brain wired from a neuron pool; generates a Capability Manifest each tick describing what the entity can perceive and what actions are available
+- **Neural** — a brain wired from a neuron pool using predefined Neuron Profiles. It evaluates sensory signals to compute outputs via bounded activation functions, generating a Capability Manifest each tick that describes available perceptions and actions. Genetic `COGNITIVE_CLARITY` determines how well the LLM interprets this manifest.
 - **Agent** — an LLM (Anthropic, Ollama, OpenRouter, or LM Studio) reads the manifest and returns a JSON action
 
 The world runs on a hybrid tick engine: world state advances synchronously every tick, while LLM calls happen asynchronously and are cached for the next tick.
