@@ -162,3 +162,45 @@ class RedisPoolRepository:
     async def delete_profile(self, profile_id: str) -> None:
         await self._r.hdel(self._PROFILE_KEY, profile_id)
 
+
+class RedisLLMLogStream:
+    _SUCCESS_STREAM = "llm_logs:success"
+    _ERROR_STREAM = "llm_logs:error"
+
+    def __init__(self, redis: Redis) -> None:
+        self._r = redis
+
+    async def publish_log(
+        self, provider: str, model: str, success: bool, duration_ms: int, details: str
+    ) -> None:
+        payload = {
+            "provider": provider,
+            "model": model,
+            "success": str(success),
+            "duration_ms": str(duration_ms),
+            "details": details,
+        }
+        if success:
+            await self._r.xadd(self._SUCCESS_STREAM, payload, maxlen=100, approximate=True)
+        else:
+            await self._r.xadd(self._ERROR_STREAM, payload, maxlen=1000, approximate=True)
+
+    async def read_recent(self, count: int = 100) -> list[dict]:
+        pipe = self._r.pipeline(transaction=False)
+        pipe.xrevrange(self._SUCCESS_STREAM, count=count)
+        pipe.xrevrange(self._ERROR_STREAM, count=count)
+        results = await pipe.execute()
+        
+        entries = []
+        for _id, fields in results[0] + results[1]:
+            d = {k.decode(): v.decode() for k, v in fields.items()}
+            d["id"] = _id.decode()
+            d["timestamp"] = int(_id.decode().split("-")[0])
+            entries.append(d)
+        
+        entries.sort(key=lambda x: x["timestamp"], reverse=True)
+        return entries[:count]
+
+    async def clear_errors(self) -> None:
+        await self._r.delete(self._ERROR_STREAM)
+
