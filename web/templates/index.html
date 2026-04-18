@@ -192,7 +192,7 @@ document.getElementById('log-filter').addEventListener('input', (e) => {
 
 // ── Actions ────────────────────────────────────────────────────────
 
-const API_BASE = "http://localhost:8000";
+const API_BASE = "{{ api_base_url }}";
 
 async function resetSimulation() {
   if (!confirm("WARNING: This will destroy all living entities, wipe the history, and reset the simulation to tick 0.")) return;

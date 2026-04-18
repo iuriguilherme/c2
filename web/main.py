@@ -43,22 +43,30 @@ async def shutdown() -> None:
 
 @app.route("/")
 async def index():
-    return await render_template("index.html")
+    api_port = os.environ.get("API_PORT_EXTERNAL", "8000")
+    api_base_url = f"http://localhost:{api_port}"
+    return await render_template("index.html", api_base_url=api_base_url)
 
 
 @app.route("/llm-providers")
 async def settings_page():
-    return await render_template("llm_providers.html")
+    api_port = os.environ.get("API_PORT_EXTERNAL", "8000")
+    api_base_url = f"http://localhost:{api_port}"
+    return await render_template("llm_providers.html", api_base_url=api_base_url)
 
 
 @app.route("/neural")
 async def neural_page():
-    return await render_template("neural.html")
+    api_port = os.environ.get("API_PORT_EXTERNAL", "8000")
+    api_base_url = f"http://localhost:{api_port}"
+    return await render_template("neural.html", api_base_url=api_base_url)
 
 
 @app.route("/prompts")
 async def prompts_page():
-    return await render_template("prompts.html")
+    api_port = os.environ.get("API_PORT_EXTERNAL", "8000")
+    api_base_url = f"http://localhost:{api_port}"
+    return await render_template("prompts.html", api_base_url=api_base_url)
 
 
 @app.route("/api/state")
