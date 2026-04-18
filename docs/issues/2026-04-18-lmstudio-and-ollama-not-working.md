@@ -1,6 +1,10 @@
 ---
+title: Local providers are not working
 date: 2026-04-18
-topic: llm-providers
+topic: llm-provider
+status: open
+source: user
+priority: low
 ---
 
 Local providers are not working.
