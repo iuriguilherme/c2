@@ -70,14 +70,21 @@ async def main() -> None:
         from storage.mongo import init_mongo
         await init_mongo()
     except Exception as exc:
-        logger.error(f"Failed to initialize MongoDB/Beanie: {exc}")
-        raise
+        logger.warning(f"Failed to initialize MongoDB/Beanie: {exc}. Simulation will proceed without MongoDB-backed features (e.g. system prompts).")
 
-    from storage.redis import RedisEntityRepository, RedisTickStream, RedisInteractionStream
-    redis = aioredis.from_url(redis_url, decode_responses=False)
+    from storage.redis import RedisEntityRepository, RedisTickStream, RedisInteractionStream, RedisLLMLogStream
+    try:
+        import fakeredis
+        redis = aioredis.from_url(redis_url, decode_responses=False)
+        await redis.ping()
+    except Exception as exc:
+        logger.warning(f"Redis unavailable ({exc}) — falling back to in-process fakeredis.")
+        redis = fakeredis.FakeAsyncRedis()
+
     repo = RedisEntityRepository(redis)
     stream = RedisTickStream(redis)
     interaction_stream = RedisInteractionStream(redis)
+    llm_log_stream = RedisLLMLogStream(redis)
     void = VoidEnvironment(width=void_w, height=void_h)
 
     gene_pool = GenePool.load()
@@ -120,10 +127,13 @@ async def main() -> None:
     rng = random.Random()
 
     async def _spawn_initial():
-        from storage.mongo import SystemPrompt
-
-        # Pre-fetch default prompts
-        default_prompts = await SystemPrompt.find({"is_default": True}).to_list()
+        default_prompts = []
+        try:
+            from storage.mongo import SystemPrompt
+            # Pre-fetch default prompts
+            default_prompts = await SystemPrompt.find({"is_default": True}).to_list()
+        except Exception as e:
+            logger.warning(f"Could not fetch default prompts from MongoDB: {e}")
 
         for i in range(n_entities):
             genome = gene_pool.default_genome()
@@ -198,6 +208,4 @@ async def main() -> None:
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
-
     asyncio.run(main())

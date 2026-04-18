@@ -194,11 +194,14 @@ class RedisLLMLogStream:
         entries = []
         for _id, fields in results[0] + results[1]:
             d = {k.decode(): v.decode() for k, v in fields.items()}
-            d["id"] = _id.decode()
-            d["timestamp"] = int(_id.decode().split("-")[0])
+            full_id = _id.decode()
+            d["id"] = full_id
+            # Extract timestamp for UI but sort by full ID string
+            d["timestamp"] = int(full_id.split("-")[0])
             entries.append(d)
         
-        entries.sort(key=lambda x: x["timestamp"], reverse=True)
+        # Sort by full ID (which includes sequence) descending
+        entries.sort(key=lambda x: x["id"], reverse=True)
         return entries[:count]
 
     async def clear_errors(self) -> None:

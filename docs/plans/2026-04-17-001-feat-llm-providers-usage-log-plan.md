@@ -1,7 +1,7 @@
 ---
 title: "feat: Add LLM Providers Usage Log"
 type: feat
-status: active
+status: completed
 date: 2026-04-17
 origin: docs/brainstorms/2026-04-17-llm-providers-usage-log-requirements.md
 ---

@@ -9,7 +9,7 @@ from api.routes.neurons import router as neurons_router
 from api.routes.neurons import set_redis_client as set_neurons_redis_client
 from api.routes.entities import router as entities_router, set_redis_client
 from api.routes.ollama import router as ollama_router
-from api.routes.settings import router as settings_router
+from api.routes.settings import router as settings_router, set_redis_client as set_settings_redis_client
 from api.routes.openrouter import router as openrouter_router
 from api.routes.lmstudio import router as lmstudio_router
 from api.routes.simulation import router as simulation_router
@@ -92,8 +92,7 @@ async def lifespan(app: FastAPI):
         from storage.mongo import init_mongo
         await init_mongo()
     except Exception as exc:
-        logger.error("Failed to initialize MongoDB/Beanie: %s", exc)
-        raise
+        logger.warning(f"Failed to initialize MongoDB/Beanie: {exc}. API will proceed without MongoDB-backed features.")
 
     yield
     if redis_client is not None:
@@ -123,6 +122,4 @@ app.include_router(system_prompts_router)
 
 @app.get("/health")
 async def health() -> dict:
-    return {"status": "ok"}
-ct:
     return {"status": "ok"}
