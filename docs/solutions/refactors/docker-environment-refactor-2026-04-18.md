@@ -2,6 +2,7 @@
 title: Docker Environment Variable and Port Management Refactor
 category: refactor
 date: 2026-04-18
+last_updated: 2026-04-18
 module: devops
 tags: [docker, environment, configuration, orchestration]
 problem_type: architectural_drift
@@ -75,3 +76,9 @@ Removed simulation parameters from environment variables in `shared.env`. This e
 - **Keep Application Config in JSON**: Continue using `settings.json` for domain-specific parameters that need to be mutable at runtime via the API.
 - **Avoid Hardcoding in Templates**: Always inject environment-dependent URLs into frontends from the backend server.
 - **Interpolation Fallbacks**: Always provide `:-default` fallbacks in `docker-compose.yml` to maintain file validity when environment files are missing or incomplete.
+- **Route files must check env before settings.json**: Any Python file that reads an infra URL (Ollama, Redis, LM Studio) must use `os.environ.get("KEY", settings.get("key", default))` — reading `settings.json` directly without checking env first causes Docker-internal URLs to be ignored.
+- **Entry points must load `shared.env` for non-Docker execution**: `engine.py`, `api/main.py`, and `web/main.py` must call `load_dotenv("shared.env")` then `load_dotenv(".env", override=True)` before any `os.environ.get()` calls, so the priority chain works outside Docker. Note: `shared.env` uses `${VAR}` interpolation that python-dotenv does not expand — outside Docker, a `.env` with host-accessible URL overrides is required.
+
+## Related
+
+- `docs/solutions/integration-issues/docker-env-priority-chain-settings-dedup-2026-04-18.md` — follow-on fix documenting the incomplete application of this refactor in Python code (route files and entry points)
