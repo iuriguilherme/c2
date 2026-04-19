@@ -1,5 +1,9 @@
 import os
+from dotenv import load_dotenv
 from quart import Quart, render_template, jsonify
+
+load_dotenv("shared.env")
+load_dotenv(".env", override=True)
 import redis.asyncio as aioredis
 from storage.redis import RedisEntityRepository, RedisTickStream
 

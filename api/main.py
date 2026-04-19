@@ -1,6 +1,10 @@
 import logging
 import os
 from contextlib import asynccontextmanager
+from dotenv import load_dotenv
+
+load_dotenv("shared.env")
+load_dotenv(".env", override=True)
 from fastapi import FastAPI
 import fakeredis
 from fastapi.middleware.cors import CORSMiddleware

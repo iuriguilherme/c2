@@ -92,9 +92,9 @@ async def add_entity(
                 pass
     allowed_providers = settings.get("allowed_providers", ["ollama", "openrouter", "lmstudio", "anthropic"])
     all_providers = [
-        OllamaProvider(base_url=settings.get("ollama_base_url", "http://localhost:11434")),
+        OllamaProvider(base_url=os.environ.get("OLLAMA_BASE_URL", settings.get("ollama_base_url", "http://localhost:11434"))),
         OpenRouterProvider(),
-        LMStudioProvider(base_url=settings.get("lmstudio_base_url", "http://localhost:1234")),
+        LMStudioProvider(base_url=os.environ.get("LMSTUDIO_BASE_URL", settings.get("lmstudio_base_url", "http://localhost:1234"))),
         AnthropicProvider(),
     ]
     providers = [p for p in all_providers if p.name in allowed_providers]

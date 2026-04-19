@@ -34,7 +34,8 @@ from simulation.reproduction import ReproductionHandler
 from simulation.tick import TickEngine
 from storage.redis import RedisEntityRepository, RedisTickStream
 
-load_dotenv()
+load_dotenv("shared.env")
+load_dotenv(".env", override=True)
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger(__name__)
 
