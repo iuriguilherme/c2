@@ -1,5 +1,7 @@
 # AGI
 
+[![Conventional Code](https://img.shields.io/badge/code-conventional%20🏭-red?style=for-the-badge)](https://github.com/zwbao/certified-organic-code)
+
 **A**gent-driven  
 **G**enetic-simulated  
 **I**ndividual-organisms  
