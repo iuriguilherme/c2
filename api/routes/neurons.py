@@ -39,7 +39,7 @@ async def add_or_update_profile(profile: NeuronProfile, redis=Depends(get_redis)
                 if p_data.get("is_default") and p_id != profile.id:
                     p_data["is_default"] = False
                     profiles_to_update[p_id] = p_data
-                    
+
         profiles_to_update[profile.id] = profile.model_dump()
         await repo.save_profiles_batch(profiles_to_update)
         return profile
