@@ -31,15 +31,17 @@ async def list_profiles(redis=Depends(get_redis)) -> list[NeuronProfile]:
 async def add_or_update_profile(profile: NeuronProfile, redis=Depends(get_redis)) -> NeuronProfile:
     repo = RedisPoolRepository(redis)
     try:
+        profiles_to_update = {}
         if profile.is_default:
             # Unset is_default on others
             data = await repo.get_all_profiles()
             for p_id, p_data in data.items():
                 if p_data.get("is_default") and p_id != profile.id:
                     p_data["is_default"] = False
-                    await repo.save_profile(p_id, p_data)
-                    
-        await repo.save_profile(profile.id, profile.model_dump())
+                    profiles_to_update[p_id] = p_data
+
+        profiles_to_update[profile.id] = profile.model_dump()
+        await repo.save_profiles_batch(profiles_to_update)
         return profile
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to save profile: {e}")

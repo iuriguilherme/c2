@@ -1,3 +1,4 @@
+import json
 from redis.asyncio import Redis
 
 
@@ -112,7 +113,6 @@ class RedisInteractionStream:
             "message": message,
         }
         if extra_data:
-            import json
             payload["extra"] = json.dumps(extra_data)
 
         await self._r.xadd(self._STREAM_KEY, payload, maxlen=1000, approximate=True)
@@ -135,29 +135,31 @@ class RedisPoolRepository:
         self._r = redis
 
     async def get_all_neurons(self) -> dict[str, dict]:
-        import json
         data = await self._r.hgetall(self._NEURON_KEY)
         if not data:
             return {}
         return {k.decode(): json.loads(v.decode()) for k, v in data.items()}
 
     async def save_neuron(self, neuron_type: str, definition: dict) -> None:
-        import json
         await self._r.hset(self._NEURON_KEY, neuron_type, json.dumps(definition))
 
     async def delete_neuron(self, neuron_type: str) -> None:
         await self._r.hdel(self._NEURON_KEY, neuron_type)
 
     async def get_all_profiles(self) -> dict[str, dict]:
-        import json
         data = await self._r.hgetall(self._PROFILE_KEY)
         if not data:
             return {}
         return {k.decode(): json.loads(v.decode()) for k, v in data.items()}
 
     async def save_profile(self, profile_id: str, profile: dict) -> None:
-        import json
         await self._r.hset(self._PROFILE_KEY, profile_id, json.dumps(profile))
+
+    async def save_profiles_batch(self, profiles: dict[str, dict]) -> None:
+        if not profiles:
+            return
+        mapping = {p_id: json.dumps(p_data) for p_id, p_data in profiles.items()}
+        await self._r.hset(self._PROFILE_KEY, mapping=mapping)
 
     async def delete_profile(self, profile_id: str) -> None:
         await self._r.hdel(self._PROFILE_KEY, profile_id)
