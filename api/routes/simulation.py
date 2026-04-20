@@ -1,7 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
-from storage.redis import RedisEntityRepository, RedisInteractionStream
-import os
-from pydantic import BaseModel
+from storage.redis import RedisInteractionStream
 from typing import List
 
 router = APIRouter(prefix="/simulation", tags=["simulation"])
