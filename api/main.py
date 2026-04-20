@@ -112,14 +112,41 @@ app = FastAPI(title="AGI Simulation API", version="1.0.0", lifespan=lifespan)
 
 # Restrict CORS origins for security
 settings = get_settings()
-allowed_origins_str = os.environ.get("ALLOWED_ORIGINS", "")
-if allowed_origins_str:
-    allowed_origins = [origin.strip() for origin in allowed_origins_str.split(",") if origin.strip()]
+default_allowed_origins = ["http://localhost:5000", "http://127.0.0.1:5000"]
+
+
+def _coerce_settings_origins(raw):
+    """Return a non-empty list[str] from a settings value, or None if invalid/empty."""
+    if not isinstance(raw, list):
+        logger.warning(
+            "settings['allowed_origins'] is not a list (got %s); ignoring.",
+            type(raw).__name__,
+        )
+        return None
+    coerced = [str(o).strip() for o in raw if str(o).strip()]
+    return coerced if coerced else None
+
+
+allowed_origins_str = os.environ.get("ALLOWED_ORIGINS")
+if allowed_origins_str is not None:
+    parsed_allowed_origins = [
+        origin.strip() for origin in allowed_origins_str.split(",") if origin.strip()
+    ]
+    if parsed_allowed_origins:
+        allowed_origins = parsed_allowed_origins
+    else:
+        logger.warning(
+            "ALLOWED_ORIGINS is set but contains no valid origins; "
+            "falling back to settings/default CORS origins."
+        )
+        settings_origins = _coerce_settings_origins(settings.get("allowed_origins"))
+        allowed_origins = settings_origins if settings_origins is not None else default_allowed_origins
 elif "allowed_origins" in settings:
-    allowed_origins = settings["allowed_origins"]
+    settings_origins = _coerce_settings_origins(settings["allowed_origins"])
+    allowed_origins = settings_origins if settings_origins is not None else default_allowed_origins
 else:
     # Default to web app ports
-    allowed_origins = ["http://localhost:5000", "http://127.0.0.1:5000"]
+    allowed_origins = default_allowed_origins
 
 app.add_middleware(
     CORSMiddleware,
