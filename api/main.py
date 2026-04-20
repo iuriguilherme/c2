@@ -1,5 +1,6 @@
 import logging
 import os
+import json
 from contextlib import asynccontextmanager
 from dotenv import load_dotenv
 
@@ -24,31 +25,34 @@ logger = logging.getLogger(__name__)
 redis_client = None
 
 
+def get_settings():
+    _root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    settings = {}
+    for settings_path in (
+        os.path.join(_root, "settings.json"),
+        os.path.join(_root, "settings.example.json"),
+    ):
+        if os.path.exists(settings_path):
+            try:
+                with open(settings_path, "r") as f:
+                    settings = json.load(f)
+                    return settings
+            except Exception as exc:
+                logger.warning(
+                    "Failed to load settings from %s (%s: %s) — using defaults/environment overrides.",
+                    settings_path, type(exc).__name__, exc,
+                )
+    return settings
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global redis_client
     try:
         from redis.asyncio import Redis
 
-        redis_url = "redis://localhost:6379"
-        import json
-        _root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        for settings_path in (
-            os.path.join(_root, "settings.json"),
-            os.path.join(_root, "settings.example.json"),
-        ):
-            if os.path.exists(settings_path):
-                try:
-                    with open(settings_path, "r") as f:
-                        settings = json.load(f)
-                        redis_url = settings.get("redis_url", redis_url)
-                    break
-                except Exception as exc:
-                    logger.warning(
-                        "Failed to load Redis settings from %s (%s: %s) — using defaults/environment overrides.",
-                        settings_path, type(exc).__name__, exc,
-                    )
-
+        settings = get_settings()
+        redis_url = settings.get("redis_url", "redis://localhost:6379")
         redis_url = os.environ.get("REDIS_URL", redis_url)
 
         redis_client = Redis.from_url(redis_url)
@@ -68,11 +72,11 @@ async def lifespan(app: FastAPI):
     try:
         # Seed pool data into Redis if empty
         from storage.redis import RedisPoolRepository
-        import json
         repo = RedisPoolRepository(redis_client)
         
         neurons = await repo.get_all_neurons()
         if not neurons:
+            _root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
             neuron_pool_path = os.path.join(_root, "data", "neuron_pool.json")
             if os.path.exists(neuron_pool_path):
                 with open(neuron_pool_path, "r") as f:
@@ -82,6 +86,7 @@ async def lifespan(app: FastAPI):
         
         profiles = await repo.get_all_profiles()
         if not profiles:
+            _root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
             profiles_path = os.path.join(_root, "data", "neuron_profiles.json")
             if os.path.exists(profiles_path):
                 with open(profiles_path, "r") as f:
@@ -105,9 +110,20 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="AGI Simulation API", version="1.0.0", lifespan=lifespan)
 
+# Restrict CORS origins for security
+settings = get_settings()
+allowed_origins_str = os.environ.get("ALLOWED_ORIGINS", "")
+if allowed_origins_str:
+    allowed_origins = [origin.strip() for origin in allowed_origins_str.split(",") if origin.strip()]
+elif "allowed_origins" in settings:
+    allowed_origins = settings["allowed_origins"]
+else:
+    # Default to web app ports
+    allowed_origins = ["http://localhost:5000", "http://127.0.0.1:5000"]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

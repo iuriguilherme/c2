@@ -10,6 +10,10 @@
   "openrouter_available_models": { "text": [] },
   "openrouter_allowed_models": { "text": [] },
   "openrouter_default_model": { "text": "" },
+  "allowed_origins": [
+    "http://localhost:5000",
+    "http://127.0.0.1:5000"
+  ],
   "redis_url": "redis://localhost:6379",
   "api_base_url": "http://localhost:8000",
   "void_width": 1000.0,
